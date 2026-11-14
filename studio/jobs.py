@@ -367,7 +367,7 @@ def render_one(job, clip, words):
     save(job)
     try:
         off = clip.get("src_offset", 0.0)
-        src = Path(clip["src"]) if clip.get("src") else Path(job["source_path"])
+        src = (Path(clip["src"]) if clip.get("src") else Path(job["source_path"])).resolve()
         if not clip.get("src"):
             clip["end"] = min(clip["end"], job["duration"])
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off)
@@ -421,7 +421,7 @@ def _fetch_piece(job, clip, full_audio):
         wav.unlink(missing_ok=True)
         meta = media.probe(piece)
         off = media.find_offset(full_audio, part, want)
-        clip.update(src=str(piece), src_offset=round(off, 2), src_end=round(off + meta["duration"], 2))
+        clip.update(src=str(piece.resolve()), src_offset=round(off, 2), src_end=round(off + meta["duration"], 2))
         clip["start"], clip["end"] = max(clip["start"], clip["src_offset"]), min(clip["end"], clip["src_end"])
         job.setdefault("width", meta["width"])
         job.setdefault("height", meta["height"])
