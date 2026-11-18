@@ -471,8 +471,8 @@ def _run_job(job):
             _set(job, thumb=True)
         usage.set_context(job["creator"], meta["title"])
         span = (o["range_end"] or meta["duration"]) - (o["range_start"] or 0)
-        pieces = span > LONG_VIDEO or meta["duration"] <= 0
-        if not pieces:  # shorter video: fetch all of it in the background while the audio is worked on
+        pieces = (span > LONG_VIDEO or meta["duration"] <= 0) and not media.is_youtube(src["url"])
+        if not pieces:  # shorter video or YouTube: fetch all of it in the background while the audio is worked on
             video = fetch.submit(media.download, src["url"], d, int(o["quality"]))
         audio_file = media.download_audio(src["url"], d, lambda p: _set(job, progress=0.03 + 0.1 * p))
     else:
@@ -503,10 +503,12 @@ def _run_job(job):
         with vlock:
             if "path" not in vstate:
                 path = None
-                try:
-                    path = video.result()
-                except Exception as e:  # noqa: BLE001 - sites sometimes refuse a download
-                    notes.append(f"Video download refused once ({str(e)[-80:]}), retrying")
+                if video:
+                    try:
+                        path = video.result()
+                    except Exception as e:  # noqa: BLE001 - sites sometimes refuse a download
+                        notes.append(f"Video download refused once ({str(e)[-80:]}), retrying")
+                if not path:
                     try:
                         path = media.download(src["url"], d, int(o["quality"]))
                     except Exception as e2:  # noqa: BLE001
@@ -520,8 +522,15 @@ def _run_job(job):
     exact = {}      # clip id -> (from, to, words): our own model's words for just that clip
 
     def make(clip, words_now):
-        if src["type"] == "url" and (pieces or not whole_video()):
-            _fetch_piece(job, clip, audio)
+        if src["type"] == "url":
+            path = whole_video() if not pieces else None
+            if not path:
+                _fetch_piece(job, clip, audio)
+                if clip.get("status") == "error":
+                    path = whole_video()
+                    if path:
+                        clip["status"] = "queued"
+                        clip.pop("error", None)
         if clip["status"] != "error" and yt and yt[1].lower().startswith("en"):
             # The clip was found with YouTube's transcript. What is shown on screen comes from our own model,
             # run on just this clip: full punctuation, nothing blanked out, timings to the word.
