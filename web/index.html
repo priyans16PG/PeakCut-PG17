@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Inter:wght@300&family=Archivo+Black&family=Anton&family=Poppins:wght@800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --brand:#FF8B33;--brand-press:#F27A1F;--brand-ink:#2A1A12;--brand-soft:#FFF2E8;--brand-line:#FFD9BC;--brand-deep:#A9480A;
+  --brand:#F97316;--brand-press:#EA580C;--brand-ink:#2A1A12;--brand-soft:#FFF2E8;--brand-line:#FFD9BC;--brand-deep:#A9480A;
   --frame:#1E1612;--frame-2:#2C221D;--frame-line:rgba(255,255,255,.08);--frame-text:#F4EEEA;--frame-dim:#A99A91;
   --bg:#FFFFFF;--muted:#F7F4F1;--line:#EEE8E4;--line-2:#E1D9D3;
   --text:#211813;--dim:#6D6159;--faint:#A0948C;
@@ -1632,9 +1632,15 @@ async function makeClips() {
 function scoreCls(s) { return s >= 80 ? "s-hi" : s >= 60 ? "s-mid" : ""; }
 function postPills(c) {
   return Object.values(c.posts || {}).filter(p => p.status !== "cancelled").map(p => {
-    const cls = p.status === "posted" ? "ok" : p.status === "failed" ? "bad" : "warn";
-    const txt = `${esc(p.account_name)} · ${p.status === "scheduled" ? clock(p.due_at) : p.status}`;
-    return p.url ? `<a class="pill ${cls}" href="${esc(p.url)}" target="_blank" rel="noopener">${txt}</a>` : `<span class="pill ${cls}" title="${esc(p.error || "")}">${txt}</span>`;
+    const isNative = p.schedule_mode === "native";
+    const cls = p.status === "posted" ? "ok" : p.status === "failed" ? "bad" : (isNative ? "ok" : "warn");
+    let txt = `${esc(p.account_name)} · `;
+    if (p.status === "posted") txt += "Posted";
+    else if (p.status === "failed") txt += "Failed";
+    else if (p.status === "posting") txt += "Posting now";
+    else if (isNative) txt += `YT Scheduled (${clock(p.due_at)})`;
+    else txt += `Local (${clock(p.due_at)})`;
+    return p.url ? `<a class="pill ${cls}" href="${esc(p.url)}" target="_blank" rel="noopener" title="${isNative ? 'Scheduled natively on YouTube' : 'View post'}">${txt}</a>` : `<span class="pill ${cls}" title="${esc(p.error || "")}">${txt}</span>`;
   }).join("");
 }
 function clipHtml(j, c) {
@@ -1830,6 +1836,7 @@ function drawCreatorForm() {
         <label class="f">Minutes between posts on one account<input data-k="post_gap_min" type="number" value="${c.post_gap_min}"></label>
         <label class="f">Most posts per account per day<input data-k="daily_cap" type="number" value="${c.daily_cap}"></label>
         <label class="f">YouTube visibility<select data-k="privacy">${opts({public:"Public", unlisted:"Unlisted", private:"Private"}, c.privacy)}</select></label>
+        <label class="f">YouTube schedule mode<select data-k="yt_schedule_mode">${opts({local:"Schedule locally (upload when due)", native:"Schedule on YouTube natively (upload now as Scheduled)"}, c.yt_schedule_mode || "local")}</select></label>
         <label class="f">Campaign pay per 1,000 views ($)<input data-k="rate_per_1k" type="number" step="0.1" min="0" value="${c.rate_per_1k}"></label>
         <label class="f span">Line added to every post (credit, campaign tag)<input data-k="post_footer" value="${esc(c.post_footer)}" placeholder="Clipped from @streamer"></label></div></div>
     <div class="card danger-card"><h2>Delete this creator</h2><p class="help">Removes ${esc(c.name)}, their settings and every video and clip filed under them. This cannot be undone.</p>
@@ -1881,7 +1888,13 @@ function drawOverview() {
   const sum = k => o.creators.reduce((a, r) => a + r[k], 0);
   const d14 = k => (o.daily || []).reduce((a, d) => a + d[k], 0);
   const state = r => r.state === "recording" ? `<span class="pill live"><span class="dot"></span>Recording</span>` : r.state === "waiting" ? `<span class="pill warn">Waiting for live</span>` : `<span class="pill">Idle</span>`;
-  const pst = p => p.status === "posted" ? `<span class="pill ok">Posted</span>` : p.status === "failed" ? `<span class="pill bad">Failed</span>` : p.status === "posting" ? `<span class="pill warn">Posting now</span>` : `<span class="pill warn">${clock(p.due_at)}</span>`;
+  const pst = p => {
+    if (p.status === "posted") return `<span class="pill ok">Posted</span>`;
+    if (p.status === "failed") return `<span class="pill bad">Failed</span>`;
+    if (p.status === "posting") return `<span class="pill warn">Posting now</span>`;
+    if (p.schedule_mode === "native") return `<span class="pill ok" title="Uploaded directly to YouTube with scheduled release">YT Scheduled · ${clock(p.due_at)}</span>`;
+    return `<span class="pill warn" title="Waiting in PeakCut local queue">Local queue · ${clock(p.due_at)}</span>`;
+  };
   const steps = nextSteps(o);
   put(box, `<div class="tiles">
       <div class="tile"><i>${ic("radio")}</i><b>${o.recording}</b><span>Recording now</span></div>
@@ -1906,7 +1919,11 @@ function drawOverview() {
         <button class="btn ${o.paused ? "primary" : ""}" data-act="pause">${ic(o.paused ? "play" : "pause")}${o.paused ? "Resume posting" : "Pause all posting"}</button></div>
       ${o.posts.length ? `<div class="scroll"><table class="stack"><tr><th>When</th><th>Clip</th><th>Creator</th><th>Account</th><th class="num">Views</th><th></th></tr>
       ${o.posts.map(p => `<tr><td data-l="Status">${pst(p)}</td><td data-l="Clip" class="c-main">${p.url ? `<a class="lnk" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>` : esc(p.title)}${p.error ? `<div class="err" style="margin:2px 0 0">${esc(p.error)}</div>` : ""}</td><td data-l="Creator">${esc(p.creator_name || "None")}</td><td data-l="Account">${esc(p.account_name)}</td><td data-l="Views" class="num">${p.views ?? "–"}</td>
-        <td class="c-act" style="text-align:right">${p.status === "scheduled" ? `<button class="btn sm" data-act="pcancel" data-id="${p.id}">Cancel</button>` : p.status === "failed" ? `<button class="btn sm" data-act="pretry" data-id="${p.id}">Retry</button>` : ""}</td></tr>`).join("")}</table></div>`
+        <td class="c-act" style="text-align:right;white-space:nowrap">${p.status === "scheduled" ? `
+          <button class="btn sm" data-act="ppostnow" data-id="${p.id}" title="Publish to YouTube right now">Post now</button>
+          ${p.platform === "youtube" && p.schedule_mode !== "native" ? `<button class="btn sm ghost" data-act="pnativenow" data-id="${p.id}" title="Upload to YouTube now as Scheduled Short">Send to YT Schedule</button>` : ""}
+          <button class="btn sm danger ghost" data-act="pcancel" data-id="${p.id}" title="Cancel post">Cancel</button>
+        ` : p.status === "failed" ? `<button class="btn sm" data-act="pretry" data-id="${p.id}">Retry</button>` : ""}</td></tr>`).join("")}</table></div>`
       : `<p class="help">Nothing queued or posted yet.</p>`}</div>`);
 }
 
@@ -1964,12 +1981,21 @@ const setTabs = () => [
   ["apps", "Connected apps", "plug", "Where your clips get posted"]];
 function aiHints() {
   const k = S.ai, sel = $("#ai_provider"); if (!k || !sel) return;
-  const pv = k.providers.find(x => x.id === sel.value) || k.providers[0], same = pv.id === k.provider;
-  $("#ai_key").placeholder = same && k.has_key ? `Saved${k.key_hint ? ", ends in " + k.key_hint : ""}. Paste a new key to replace it` : pv.needs_key ? "Paste your key" : "Not needed";
-  $("#ai_keyhint").innerHTML = pv.key_url ? `${pv.needs_key ? "Get a key at" : "Set it up at"} <a href="${esc(pv.key_url)}" target="_blank" rel="noopener">${esc(pv.key_url.replace("https://", ""))}</a>. The key stays on this server and is never shown again.` : "The key stays on this server and is never shown again.";
+  const pv = k.providers.find(x => x.id === sel.value) || k.providers[0];
+  const sp = (k.saved_providers || {})[sel.value] || {};
+  const hasKey = sp.has_key || (pv.id === k.provider && k.has_key);
+  const keyHint = sp.key_hint || (pv.id === k.provider ? k.key_hint : "");
+  if ($("#ai_key")) {
+    $("#ai_key").placeholder = hasKey ? `Saved${keyHint ? ", ends in " + keyHint : ""}. Paste a new key to replace it` : pv.needs_key ? "Paste your key" : "Not needed";
+    $("#ai_keyhint").innerHTML = pv.key_url ? `${pv.needs_key ? "Get a key at" : "Set it up at"} <a href="${esc(pv.key_url)}" target="_blank" rel="noopener">${esc(pv.key_url.replace("https://", ""))}</a>. The key stays on this server and is never shown again.` : "The key stays on this server and is never shown again.";
+  }
   $("#ai_model").placeholder = pv.example ? "For example " + pv.example : "The model id, exactly as the service names it";
   $("#ai_base").placeholder = pv.address || "http://127.0.0.1:1234/v1";
-  $("#ai_basewrap").hidden = pv.id !== "custom" && !(same && k.base_url);
+  $("#ai_basewrap").hidden = pv.id !== "custom" && !(sp.base_url || (pv.id === k.provider && k.base_url));
+  const gemWrap = $("#gemini_panel");
+  if (gemWrap) gemWrap.hidden = (sel.value !== "gemini");
+  const sKeyWrap = $("#ai_singlekey_wrap");
+  if (sKeyWrap) sKeyWrap.hidden = (sel.value === "gemini");
 }
 async function drawSettings() {
   const box = $("#sform"); if (!box) return;
@@ -1982,10 +2008,75 @@ async function drawSettings() {
     if (tab === "ai") {
       const k = S.ai = await api("/api/ai");
       body.innerHTML = `<section class="set-sec"><h2>AI</h2><p class="help">PeakCut uses an AI model to pick the moments worth clipping and to write hooks, titles and captions. Use your own key from any of these services. You pay that service directly. Without a key, clips are picked by loudness.</p>
+          ${k.gemini_all_quota_reached ? `<div class="note" style="margin-bottom:16px;background:var(--bad-soft);border:1px solid var(--bad);border-radius:var(--r);padding:14px 18px;display:flex;gap:12px;align-items:flex-start">
+            <span style="color:var(--bad);flex:none;margin-top:2px">${ic("warn")}</span>
+            <div style="flex:1">
+              <b style="color:var(--bad);display:block;font-size:14px;margin-bottom:4px">All Gemini Quotas Reached (ALL_GEMINI_QUOTA_REACHED)</b>
+              <p style="margin:0;font-size:13px;color:var(--text);line-height:1.4">All Gemini API keys and Gemini 3 models have reached their quota. Add another key, switch providers, or wait for quota reset.</p>
+              <div style="margin-top:10px"><button class="btn sm" data-act="gemini-reset-cooldowns" type="button" style="background:#fff">${ic("clock")}Reset Quota Cooldowns</button></div>
+            </div>
+          </div>` : ""}
           <div class="ai-state">${k.ready ? `<span class="pill ok">${ic("check")}Ready</span><span class="sub">${esc(k.label)} · ${esc(k.models[0] || "")}</span>` : `<span class="pill warn">Not set up</span><span class="sub">Choose a service, paste your key and pick a model.</span>`}</div>
           <div class="ai-form">
             <label class="f">AI service<select id="ai_provider">${k.providers.map(x => `<option value="${esc(x.id)}" ${x.id === k.provider ? "selected" : ""}>${esc(x.label)}</option>`).join("")}</select></label>
-            <label class="f">Key<input id="ai_key" type="password" autocomplete="off" spellcheck="false"><span class="hint" id="ai_keyhint"></span></label>
+
+            <div id="gemini_panel" ${k.provider === "gemini" ? "" : "hidden"}>
+              <div class="card" style="margin:16px 0 20px;padding:16px;border:1px solid var(--line);border-radius:var(--r);background:var(--muted)">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <div>
+                    <h3 style="font-size:14px;font-weight:600;margin:0 0 2px">Strict Gemini 3.x Model Pool</h3>
+                    <span class="sub" style="font-size:12px">Automatic failover rotates in strict order on rate limit (429). Legacy 1.x & 2.x models removed.</span>
+                  </div>
+                  <button class="btn sm ghost" data-act="gemini-apply-pool" type="button" title="Set to strict Gemini 3 rotation order">Use Strict Pool</button>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  ${(k.gemini_3_models || []).map((m, idx) => `<span class="pill brand" style="background:#fff;border:1px solid var(--line);font-size:12px;padding:3px 10px"><b>${idx + 1}.</b> <code style="margin-left:4px">${esc(m)}</code></span>`).join("")}
+                </div>
+              </div>
+
+              <div class="card" style="margin-bottom:20px;padding:16px;border:1px solid var(--line);border-radius:var(--r)">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                  <div>
+                    <h3 style="font-size:14px;font-weight:600;margin:0 0 2px">Gemini API Keys (${(k.gemini_keys || []).length})</h3>
+                    <span class="sub" style="font-size:12px">Requests rotate across active keys. Keys with 429 quota exhaustion enter 60s cooldown.</span>
+                  </div>
+                  ${(k.gemini_keys || []).length ? `<button class="btn sm ghost" data-act="gemini-reset-cooldowns" type="button" title="Clear all quota cooldowns">${ic("clock")}Reset Cooldowns</button>` : ""}
+                </div>
+
+                <div id="gemini_keys_list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+                  ${(k.gemini_keys || []).length ? (k.gemini_keys || []).map((key, idx) => `
+                    <div class="key-item" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-sm,8px);background:#fff">
+                      <span style="font-size:12px;font-weight:600;color:var(--dim);min-width:18px">${idx + 1}</span>
+                      <div style="display:flex;gap:3px">
+                        <button class="btn sm ghost" data-act="gemini-move" data-dir="up" data-id="${esc(key.id)}" ${idx === 0 ? "disabled" : ""} title="Move Up" style="width:26px;height:26px;padding:0">${ic("up")}</button>
+                        <button class="btn sm ghost" data-act="gemini-move" data-dir="down" data-id="${esc(key.id)}" ${idx === (k.gemini_keys.length - 1) ? "disabled" : ""} title="Move Down" style="width:26px;height:26px;padding:0">${ic("down")}</button>
+                      </div>
+                      <input class="key-label-inp" data-id="${esc(key.id)}" value="${esc(key.label || 'Key')}" style="height:32px;max-width:180px;font-size:13px;padding:4px 8px" title="Click to rename label">
+                      <code style="font-size:12px;color:var(--dim);flex:1">${esc(key.masked_key || ("•••• " + (key.key_hint || "")))}</code>
+                      <div>
+                        ${key.status === "active" ? `<span class="pill ok">${ic("check")}Active</span>` :
+                          key.status === "quota_exhausted" ? `<span class="pill warn">${ic("warn")}Quota Exhausted</span>` :
+                          `<span class="pill bad">${ic("x")}Invalid</span>`}
+                      </div>
+                      <button class="btn sm" data-act="gemini-test-key" data-id="${esc(key.id)}" type="button" title="Test key with Google API">${ic("bolt")}Test</button>
+                      ${key.status === "quota_exhausted" ? `<button class="btn sm ghost" data-act="gemini-reset-key" data-id="${esc(key.id)}" type="button" title="Reset cooldown">${ic("clock")}</button>` : ""}
+                      <button class="btn sm danger" data-act="gemini-del-key" data-id="${esc(key.id)}" type="button" title="Delete key" style="width:32px;height:32px;padding:0">${ic("trash")}</button>
+                    </div>
+                  `).join("") : `<p class="help" style="margin:8px 0">No Gemini keys stored yet. Add one below to enable multi-key rotation.</p>`}
+                </div>
+
+                <div style="display:flex;gap:8px;align-items:center;background:var(--muted);padding:12px;border-radius:var(--r-sm,8px)">
+                  <input id="gemini_new_key" type="password" placeholder="Paste Gemini API key (AIzaSy...)" autocomplete="off" spellcheck="false" style="flex:1;height:36px;font-size:13px">
+                  <input id="gemini_new_label" placeholder="Label (optional)" style="width:160px;height:36px;font-size:13px">
+                  <button class="btn primary" data-act="gemini-add-key" type="button" style="height:36px;padding:0 14px;white-space:nowrap">${ic("plus")}Add Key</button>
+                </div>
+                <span class="hint" style="margin-top:6px;display:block">Get free Gemini keys at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Adding multiple keys distributes requests and auto-recovers from free-tier rate limits.</span>
+              </div>
+            </div>
+
+            <div id="ai_singlekey_wrap" ${k.provider === "gemini" ? "hidden" : ""}>
+              <label class="f">Key<input id="ai_key" type="password" autocomplete="off" spellcheck="false"><span class="hint" id="ai_keyhint"></span></label>
+            </div>
             <label class="f" id="ai_basewrap">Address<input id="ai_base" value="${esc(k.base_url || "")}" spellcheck="false"><span class="hint">Where the service answers. Only needed for a custom service.</span></label>
             <label class="f">Model<span class="with"><input id="ai_model" list="ai_models" value="${esc(k.models.join(", "))}" spellcheck="false"><button class="btn" type="button" data-act="aimodels">Find models</button></span>
               <datalist id="ai_models"></datalist><span class="hint">A fast, inexpensive model is the right choice. Add a second one after a comma to fall back on.</span></label>
@@ -2150,8 +2241,26 @@ function drawClipDlg(full) {
         <button class="btn" data-act="remake">${ic("scissors")}Save and re-make clip</button>
         <h3>Post it</h3>
         <div id="dposts" class="row" style="gap:4px"></div>
-        ${S.accounts.length ? `<div class="row">${S.accounts.map(a => `<label class="ck"><input type="checkbox" data-pacc value="${esc(a.id)}">${esc(a.label)} · ${esc(a.name)}</label>`).join("")}</div>
-          <div class="row"><button class="btn primary" data-act="postnow">${ic("send")}Post now</button><button class="btn" data-act="postqueue">Add to queue</button></div>`
+        ${S.accounts.length ? `
+          <div class="row" style="gap:10px;flex-wrap:wrap">${S.accounts.map(a => `<label class="ck"><input type="checkbox" data-pacc value="${esc(a.id)}">${esc(a.label)} · ${esc(a.name)}</label>`).join("")}</div>
+          <div class="two" style="margin-top:10px">
+            <label class="f">Schedule mode
+              <select id="p_sched_mode">
+                <option value="local">Schedule locally (PeakCut queue · upload when due)</option>
+                <option value="native">Schedule on YouTube (upload now as Scheduled Short)</option>
+              </select>
+            </label>
+            <label class="f">Specific time (optional)
+              <input id="p_custom_time" type="datetime-local" title="Leave empty for next auto-spaced slot">
+            </label>
+          </div>
+          <p class="help" style="margin:2px 0 10px;font-size:12px" id="p_sched_hint">
+            <b>Local queue:</b> Video stays on your computer and uploads to YouTube at the scheduled time.
+          </p>
+          <div class="row">
+            <button class="btn primary" data-act="postnow">${ic("send")}Post now</button>
+            <button class="btn" data-act="postqueue">${ic("clock")}Schedule post</button>
+          </div>`
           : `<p class="help">No accounts connected yet. Connect one in Settings.</p>`}
         <div class="row" style="margin-top:auto;padding-top:8px;border-top:1px solid var(--line)">
           ${c.status === "done" ? `<a class="btn" href="${m}${esc(c.file)}?download=1">${ic("down")}Download</a>` : ""}
@@ -2163,6 +2272,16 @@ function drawClipDlg(full) {
 }
 $("#clipdlg").addEventListener("close", () => { $("#clipdlg").innerHTML = ""; D.jid = null; });
 $("#clipdlg").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+$("#clipdlg").addEventListener("change", e => {
+  if (e.target && e.target.id === "p_sched_mode") {
+    const hint = $("#p_sched_hint");
+    if (hint) {
+      hint.innerHTML = e.target.value === "native"
+        ? "<b>YouTube native:</b> Uploads to YouTube immediately as a private Short with scheduled release. Appears in YouTube Studio right away."
+        : "<b>Local queue:</b> Video stays on your computer and uploads to YouTube at the scheduled time.";
+    }
+  }
+});
 
 /* ============================================================ render + polling */
 function render() {
@@ -2219,7 +2338,31 @@ document.addEventListener("dragleave", () => $(".composer")?.classList.remove("o
 document.addEventListener("drop", e => { const a = $(".composer"); if (a) { e.preventDefault(); a.classList.remove("over"); attach(e.dataTransfer.files); } });
 document.addEventListener("change", async e => {
   const t = e.target;
-  if (t.id === "ai_provider") { $("#ai_models").innerHTML = ""; if (S.ai && t.value !== S.ai.provider) { $("#ai_model").value = ""; $("#ai_base").value = ""; } return aiHints(); }
+  if (t.id === "ai_provider") {
+    $("#ai_models").innerHTML = "";
+    const sp = (S.ai?.saved_providers || {})[t.value];
+    if (sp && sp.models && sp.models.length) {
+      $("#ai_model").value = sp.models.join(", ");
+      $("#ai_base").value = sp.base_url || "";
+    } else if (t.value === "gemini") {
+      $("#ai_model").value = (S.ai?.gemini_3_models || []).join(", ");
+      $("#ai_base").value = "";
+    } else {
+      const pv = (S.ai?.providers || []).find(x => x.id === t.value);
+      $("#ai_model").value = pv?.example || "";
+      $("#ai_base").value = pv?.address || "";
+    }
+    if ($("#ai_key")) $("#ai_key").value = "";
+    return aiHints();
+  }
+  if (t.classList.contains("key-label-inp")) {
+    const kid = t.dataset.id;
+    try {
+      await send("/api/ai/gemini/keys/" + kid, { label: t.value }, "PUT");
+      toast("Key label saved.", "ok");
+    } catch (err) { toast(err.message, "bad"); }
+    return;
+  }
   if (t.dataset.sel) {
     const k = t.dataset.sel;
     if (t.checked) sel().add(k); else sel().delete(k);
@@ -2266,6 +2409,92 @@ document.addEventListener("click", async e => {
         if (ok) toast(`Saved. ${ok.model} answered, so the AI is ready.`, "ok");
         else toast(`Saved, but the test failed. ${why}`, "bad");
       } finally { b.disabled = false; }
+      return;
+    }
+    if (a === "gemini-add-key") {
+      const kinp = $("#gemini_new_key"), linp = $("#gemini_new_label");
+      if (!kinp || !kinp.value.trim()) return toast("Paste your Gemini API key first.", "bad");
+      b.disabled = true;
+      try {
+        await send("/api/ai/gemini/keys", { key: kinp.value.trim(), label: linp ? linp.value.trim() : "" });
+        toast("Gemini API key added.", "ok");
+        S.status = await api("/api/status");
+        await drawSettings();
+      } catch (err) { toast(err.message, "bad"); }
+      finally { b.disabled = false; }
+      return;
+    }
+    if (a === "gemini-test-key") {
+      const kid = d.id; b.disabled = true;
+      try {
+        const res = await send("/api/ai/gemini/keys/" + kid + "/test", {});
+        if (res.ok) toast("Key is valid and active.", "ok");
+        else toast(res.message || "Key test failed.", res.status === "quota_exhausted" ? "warn" : "bad");
+        S.status = await api("/api/status");
+        await drawSettings();
+      } catch (err) { toast(err.message, "bad"); }
+      finally { b.disabled = false; }
+      return;
+    }
+    if (a === "gemini-del-key") {
+      const kid = d.id;
+      if (!confirm("Remove this Gemini API key?")) return;
+      b.disabled = true;
+      try {
+        await api("/api/ai/gemini/keys/" + kid, { method: "DELETE" });
+        toast("Key removed.", "ok");
+        S.status = await api("/api/status");
+        await drawSettings();
+      } catch (err) { toast(err.message, "bad"); }
+      finally { b.disabled = false; }
+      return;
+    }
+    if (a === "gemini-reset-key") {
+      const kid = d.id; b.disabled = true;
+      try {
+        await send("/api/ai/gemini/keys/" + kid + "/reset", {});
+        toast("Key cooldown reset.", "ok");
+        S.status = await api("/api/status");
+        await drawSettings();
+      } catch (err) { toast(err.message, "bad"); }
+      finally { b.disabled = false; }
+      return;
+    }
+    if (a === "gemini-reset-cooldowns") {
+      b.disabled = true;
+      try {
+        await send("/api/ai/gemini/reset-cooldowns", {});
+        toast("All Gemini quota cooldowns reset.", "ok");
+        S.status = await api("/api/status");
+        await drawSettings();
+      } catch (err) { toast(err.message, "bad"); }
+      finally { b.disabled = false; }
+      return;
+    }
+    if (a === "gemini-move") {
+      const kid = d.id, dir = d.dir;
+      const keys = [...(S.ai?.gemini_keys || [])];
+      const idx = keys.findIndex(x => x.id === kid);
+      if (idx !== -1) {
+        const targetIdx = dir === "up" ? idx - 1 : idx + 1;
+        if (targetIdx >= 0 && targetIdx < keys.length) {
+          const temp = keys[idx];
+          keys[idx] = keys[targetIdx];
+          keys[targetIdx] = temp;
+          b.disabled = true;
+          try {
+            await send("/api/ai/gemini/keys/reorder", { order: keys.map(x => x.id) });
+            await drawSettings();
+          } catch (err) { toast(err.message, "bad"); }
+          finally { b.disabled = false; }
+          return;
+        }
+      }
+      return;
+    }
+    if (a === "gemini-apply-pool") {
+      $("#ai_model").value = (S.ai?.gemini_3_models || []).join(", ");
+      toast("Gemini 3 strict rotation pool applied.", "ok");
       return;
     }
     if (a === "menu") return $("#app").classList.toggle("open");
@@ -2417,6 +2646,20 @@ document.addEventListener("click", async e => {
     if (a === "cdiscard") { drawCreatorForm(); return toast("Changes discarded"); }
     if (a === "pause") { await send("/api/settings", {paused:!S.overview.paused}, "PUT"); return loadOverview(); }
     if (a === "pcancel" || a === "pretry") { await api(`/api/posts/${d.id}/${a === "pcancel" ? "cancel" : "retry"}`, {method:"POST"}); return loadOverview(); }
+    if (a === "ppostnow") {
+      if (!await ask("Post now?", "Publish this clip immediately?", "Post now")) return;
+      await api(`/api/posts/${d.id}/postnow`, {method:"POST"});
+      toast("Posting now...", "ok");
+      await tick();
+      return loadOverview();
+    }
+    if (a === "pnativenow") {
+      toast("Uploading to YouTube as Scheduled Short...", "ok");
+      await api(`/api/posts/${d.id}/schedulenative`, {method:"POST"});
+      toast("Scheduled natively on YouTube", "ok");
+      await tick();
+      return loadOverview();
+    }
     if (a === "ssave") { await saveSettings(); toast("Saved", "ok"); return drawSettings(); }
     if (a === "plansave") {
       const p = {}; $$("#sform [data-plan]").forEach(i => { (p[i.dataset.plan] ??= {})[i.dataset.f] = Number(i.value); });
@@ -2435,9 +2678,27 @@ document.addEventListener("click", async e => {
     if (a === "postnow" || a === "postqueue") {
       const accs = $$("#clipdlg [data-pacc]:checked").map(i => i.value);
       if (!accs.length) return toast("Tick at least one account first.", "bad");
-      if (a === "postnow" && !await ask("Post now?", `This clip goes to ${accs.length} account${accs.length > 1 ? "s" : ""} straight away.`, "Post now")) return;
-      await send("/api/posts", {job:D.jid, clip:D.cid, accounts:accs, now:a === "postnow"});
-      toast(a === "postnow" ? "Posting now" : "Added to the queue", "ok"); return tick();
+      const schedMode = $("#p_sched_mode")?.value || "local";
+      const customTimeVal = $("#p_custom_time")?.value;
+      let dueAt = null;
+      if (customTimeVal) {
+        const parsed = new Date(customTimeVal).getTime() / 1000;
+        if (!isNaN(parsed) && parsed > Date.now() / 1000) dueAt = parsed;
+      }
+      if (a === "postnow") {
+        if (!await ask("Post now?", `This clip goes to ${accs.length} account${accs.length > 1 ? "s" : ""} straight away.`, "Post now")) return;
+        await send("/api/posts", {job:D.jid, clip:D.cid, accounts:accs, now:true});
+        toast("Posting now", "ok");
+      } else {
+        if (schedMode === "native") {
+          toast("Uploading to YouTube as Scheduled Short...", "ok");
+        } else {
+          toast("Added to local queue", "ok");
+        }
+        await send("/api/posts", {job:D.jid, clip:D.cid, accounts:accs, now:false, schedule_mode:schedMode, due_at:dueAt});
+        toast(schedMode === "native" ? "Scheduled natively on YouTube" : "Added to queue", "ok");
+      }
+      return tick();
     }
   } catch (err) { b.disabled = false; toast(err.message, "bad"); }
 });

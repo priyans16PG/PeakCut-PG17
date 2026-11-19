@@ -61,7 +61,13 @@ def brief() -> dict:
         today = c.execute(sa.select(sa.func.count(), sa.func.coalesce(sa.func.sum(_tokens()), 0)).where(
             u.user_id == uid, u.t >= midnight)).first()
     out = {"ready": ai.ready(), "provider": ai.label(), "model": (ai.models() or [""])[0],
-           "today_calls": int(today[0]), "today_tokens": int(today[1])}
+           "today_calls": int(today[0]), "today_tokens": int(today[1]),
+           "gemini_all_quota_reached": ai.is_gemini_all_quota_reached()}
+    if ai.is_gemini_all_quota_reached():
+        out["quota_error"] = {
+            "code": "ALL_GEMINI_QUOTA_REACHED",
+            "message": "All Gemini API keys and Gemini 3 models have reached their quota. Add another key, switch providers, or wait for quota reset."
+        }
     _brief[uid] = (now, out)
     return dict(out)
 

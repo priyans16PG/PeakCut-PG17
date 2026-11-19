@@ -1254,10 +1254,99 @@ def ai_test(request: Request):
     _throttle("aitest:" + ctx.uid(), 20, 600)
     try:
         return ai.test()
+    except ai.GeminiQuotaExhaustedError as e:
+        raise HTTPException(429, detail={"code": e.code, "message": str(e)})
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, "The AI did not answer: " + _ai_error(e))
+
+
+# ---------------------------------------------------------------- Gemini Multi-Key & Quota Rotation
+@app.get("/api/ai/gemini/keys")
+def gemini_keys_get(request: Request):
+    _admin(request)
+    return {"keys": ai.get_gemini_keys(mask=True), "all_quota_reached": ai.is_gemini_all_quota_reached()}
+
+
+@app.post("/api/ai/gemini/keys")
+def gemini_keys_add(request: Request, body: dict = Body(...)):
+    _admin(request)
+    try:
+        new_k = ai.add_gemini_key(body.get("key"), body.get("label", ""))
+        usage.forget_all()
+        ctx.bump()
+        return {"keys": ai.get_gemini_keys(mask=True), "added": new_k}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.put("/api/ai/gemini/keys/{key_id}")
+def gemini_key_update(key_id: str, request: Request, body: dict = Body(...)):
+    _admin(request)
+    try:
+        updated = ai.update_gemini_key_label(key_id, body.get("label", ""))
+        ctx.bump()
+        return {"keys": ai.get_gemini_keys(mask=True), "updated": updated}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/ai/gemini/keys/{key_id}/test")
+def gemini_key_test(key_id: str, request: Request):
+    _admin(request)
+    _throttle("aitest:" + ctx.uid(), 20, 600)
+    try:
+        res = ai.test_gemini_key(key_id)
+        ctx.bump()
+        return {**res, "keys": ai.get_gemini_keys(mask=True)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/ai/gemini/keys/reorder")
+def gemini_keys_reorder(request: Request, body: dict = Body(...)):
+    _admin(request)
+    try:
+        keys = ai.reorder_gemini_keys(body.get("order") or [])
+        ctx.bump()
+        return {"keys": keys}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/ai/gemini/keys/{key_id}")
+def gemini_key_delete(key_id: str, request: Request):
+    _admin(request)
+    try:
+        keys = ai.delete_gemini_key(key_id)
+        usage.forget_all()
+        ctx.bump()
+        return {"keys": keys}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/ai/gemini/keys/{key_id}/reset")
+def gemini_key_reset_cooldown(key_id: str, request: Request):
+    _admin(request)
+    try:
+        keys = ai.reset_gemini_cooldowns(key_id)
+        ctx.bump()
+        return {"keys": keys}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/ai/gemini/reset-cooldowns")
+def gemini_reset_all_cooldowns(request: Request):
+    _admin(request)
+    try:
+        keys = ai.reset_gemini_cooldowns(None)
+        ctx.bump()
+        return {"keys": keys}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 # ================================================================ posting, accounts, settings
@@ -1350,7 +1439,15 @@ def add_posts(body: dict = Body(...)):
     clip = next((c for c in job["clips"] if c["id"] == body.get("clip")), None) if job else None
     if not clip or clip.get("status") != "done":
         raise HTTPException(404, "That clip is not ready")
-    made = posting.enqueue(job, clip, [str(a) for a in body.get("accounts", [])][:20], now=bool(body.get("now")))
+    sched_mode = str(body.get("schedule_mode") or "local").strip().lower()
+    custom_due = body.get("due_at")
+    if custom_due is not None:
+        try:
+            custom_due = float(custom_due)
+        except (ValueError, TypeError):
+            custom_due = None
+    made = posting.enqueue(job, clip, [str(a) for a in body.get("accounts", [])][:20],
+                           now=bool(body.get("now")), schedule_mode=sched_mode, custom_due=custom_due)
     if not made:
         raise HTTPException(400, "Nothing was queued. Pick at least one account this clip has not already gone to.")
     return {"queued": len(made)}
@@ -1358,8 +1455,14 @@ def add_posts(body: dict = Body(...)):
 
 @app.post("/api/posts/{pid}/{action}")
 def post_action(pid: str, action: str):
+    actions = {
+        "cancel": posting.cancel,
+        "retry": posting.retry,
+        "postnow": posting.post_now,
+        "schedulenative": posting.schedule_native,
+    }
     try:
-        {"cancel": posting.cancel, "retry": posting.retry}[action](pid)
+        actions[action](pid)
     except KeyError:
         raise HTTPException(404)
     except ValueError as e:

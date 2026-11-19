@@ -52,6 +52,8 @@ def main() -> int:
                 ("big uploads in pieces", ["tests/test_upload_parts.py", BASE]),
                 ("AI services", ["tests/test_ai.py"]),
                 ("no sign-in, and the AI key from the dashboard", ["tests/test_local.py"]),
+                ("Gemini 3 rotation & multi-key API storage", ["tests/test_gemini_rotation.py"]),
+                ("Local vs YouTube Native Scheduling", ["tests/test_scheduling.py"]),
                 ("Hindi and Urdu captions in Roman letters", ["tests/test_roman.py"])]
         for name, args in runs:
             print(f"\n=== {name} ===", flush=True)

@@ -168,6 +168,13 @@ def ask_ai(prompt, schema=None, purpose="AI call"):
     Returns (the answer, the model that gave it, tokens used) and notes the tokens in the usage record."""
     if not config.ai_ready():
         raise RuntimeError("The AI is not set up on this server.")
+    if ai.provider() == "gemini":
+        try:
+            out, model, sent, wrote = ai.call_gemini_rotation(prompt, schema or SCHEMA)
+            usage.record(sent, wrote, purpose)
+            return out, model, sent + wrote
+        except ai.GeminiQuotaExhaustedError:
+            raise
     last = None
     for model in ai.models():
         for attempt in range(3):
@@ -241,12 +248,18 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
             out, used_model, spent = ask_ai(prompt, purpose="Video: finding clips")
             tokens += spent
             found += [c for c in out if isinstance(c, dict) and a - 5 <= float(c.get("start", -1)) < b]
+        except ai.GeminiQuotaExhaustedError as e:
+            log(f"All Gemini quotas exhausted: {e}")
+            break
         except Exception as e:  # noqa: BLE001
             log(f"AI window {a:.0f}-{b:.0f}s failed: {e}")
     note = ""
     if not used_model:
         found = fallback_by_loudness(db, words, max_clips, max_len, duration)
-        note = "The AI was unavailable, so clips were picked by loudness only."
+        if ai.is_gemini_all_quota_reached():
+            note = "All Gemini API keys and Gemini 3 models have reached their quota. Add another key, switch providers, or wait for quota reset."
+        else:
+            note = "The AI was unavailable, so clips were picked by loudness only."
     clips = []
     for c in sorted(found, key=lambda c: -_num(c.get("score"))):
         s, e = _snap(c, lines, words, min_len, max_len, duration)

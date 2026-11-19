@@ -1,10 +1,10 @@
 """Post queue: decides when each finished clip goes to which account, posts it, and tracks views."""
+import json
 import secrets
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
-
-import json
 
 from . import accounts, alerts, config, creators, ctx, jobs, live
 
@@ -38,7 +38,7 @@ def _mirror(p):
     job = jobs.get(p["job"])
     clip = next((c for c in job["clips"] if c["id"] == p["clip"]), None) if job else None
     if clip is not None:
-        clip.setdefault("posts", {})[p["id"]] = {k: p.get(k) for k in ("account_name", "platform", "status", "url", "due_at", "error")}
+        clip.setdefault("posts", {})[p["id"]] = {k: p.get(k) for k in ("account_name", "platform", "status", "schedule_mode", "url", "due_at", "error")}
         jobs.save(job)
 
 
@@ -54,7 +54,7 @@ def _next_slot(account_id, gap_min, cap):
     return t
 
 
-def enqueue(job, clip, account_ids, now=False) -> list:
+def enqueue(job, clip, account_ids, now=False, schedule_mode="local", custom_due=None) -> list:
     c = creators.get(job["creator"]) or creators.DEFAULTS
     made = []
     with _lock:
@@ -65,9 +65,16 @@ def enqueue(job, clip, account_ids, now=False) -> list:
             if any(p["job"] == job["id"] and p["clip"] == clip["id"] and p["account"] == aid
                    and p["status"] in OPEN + ("posted",) for p in _mine()):
                 continue  # never post the same clip to the same account twice
-            due = time.time() if now else _next_slot(aid, c["post_gap_min"], c["daily_cap"])
+            if now:
+                due = time.time()
+                mode = "immediate"
+            else:
+                due = custom_due if (custom_due and custom_due > time.time()) else _next_slot(aid, c["post_gap_min"], c["daily_cap"])
+                mode = schedule_mode if (schedule_mode == "native" and acc["platform"] == "youtube") else "local"
+
             p = {"id": secrets.token_hex(8), "user": ctx.uid(), "job": job["id"], "clip": clip["id"], "creator": job["creator"],
                  "account": aid, "account_name": acc["name"], "platform": acc["platform"], "status": "scheduled",
+                 "schedule_mode": mode,
                  "due_at": due, "created": time.time(), "title": clip.get("title") or clip.get("hook") or "Clip",
                  "score": clip.get("score", 0), "tries": 0, "url": "", "remote_id": "", "error": None, "views": None}
             _posts.append(p)
@@ -75,6 +82,9 @@ def enqueue(job, clip, account_ids, now=False) -> list:
         _save()
     for p in made:
         _mirror(p)
+    for p in made:
+        if p.get("schedule_mode") in ("native", "immediate"):
+            _post(p)
     return made
 
 
@@ -85,9 +95,10 @@ def on_clip_ready(job, clip):
         return
     if clip.get("score", 0) < c["post_min_score"]:
         return  # includes hand-made clips (score 0): those wait for you to press Post
-    made = enqueue(job, clip, c["accounts"])
+    mode = c.get("yt_schedule_mode") or "local"
+    made = enqueue(job, clip, c["accounts"], schedule_mode=mode)
     if made:
-        creators.log(c["id"], f"Queued for {len(made)} account(s): {clip.get('title') or clip.get('hook')}")
+        creators.log(c["id"], f"Queued for {len(made)} account(s) ({mode}): {clip.get('title') or clip.get('hook')}")
 
 
 def _caption(clip, creator):
@@ -108,17 +119,30 @@ def _post(p):
         creator = creators.get(job["creator"]) or dict(creators.DEFAULTS, name="clips")
         title, cap = clip.get("title") or clip.get("hook") or "Clip", _caption(clip, creator)
         if acc["platform"] == "youtube":
-            rid, url = accounts.youtube_upload(acc, path, title, cap + "\n\n#Shorts", clip.get("hashtags", []), creator["privacy"])
+            is_native = p.get("schedule_mode") == "native" and p.get("due_at", 0) > time.time() + 60
+            publish_at_str = None
+            privacy = creator["privacy"]
+            if is_native:
+                dt = datetime.fromtimestamp(p["due_at"], tz=timezone.utc)
+                publish_at_str = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                privacy = "private"
+            rid, url = accounts.youtube_upload(acc, path, title, cap + "\n\n#Shorts", clip.get("hashtags", []),
+                                               privacy, publish_at=publish_at_str)
         elif acc["platform"] == "instagram":
             rid, url = accounts.instagram_upload(acc, path, f"{title}\n\n{cap}")
         else:
             raise RuntimeError("That kind of account is no longer supported.")
-        p.update(status="posted", posted_at=time.time(), remote_id=rid, url=url, error=None)
-        creators.log(p["creator"], f"Posted to {acc['name']}: {title}")
+
+        if p.get("schedule_mode") == "native" and p.get("due_at", 0) > time.time():
+            p.update(status="scheduled", posted_at=time.time(), remote_id=rid, url=url, error=None)
+            creators.log(p["creator"], f"Scheduled natively on {acc['name']} for {time.ctime(p['due_at'])}: {title}")
+        else:
+            p.update(status="posted", posted_at=time.time(), remote_id=rid, url=url, error=None)
+            creators.log(p["creator"], f"Posted to {acc['name']}: {title}")
     except Exception as e:  # noqa: BLE001
         p["tries"] += 1
         p["error"] = str(e)[-300:]
-        if p["tries"] < 3 and clip and acc:
+        if p["tries"] < 3 and clip and acc and p.get("schedule_mode") != "native":
             p.update(status="scheduled", due_at=time.time() + 600)  # try again in 10 minutes
         else:
             p["status"] = "failed"
@@ -139,6 +163,12 @@ def _run():
                         continue
                     with _lock:
                         if p["status"] != "scheduled":
+                            continue
+                        if p.get("schedule_mode") == "native" and p.get("remote_id"):
+                            p["status"] = "posted"
+                            _save()
+                            _mirror(p)
+                            creators.log(p["creator"], f"Native scheduled post on {p['account_name']} is now live: {p['title']}")
                             continue
                         p["status"] = "posting"
                     _post(p)
@@ -180,6 +210,13 @@ def cancel(pid):
         if not p or p["status"] != "scheduled":
             raise ValueError("Only posts that are still waiting can be cancelled.")
         p["status"] = "cancelled"
+        if p.get("schedule_mode") == "native" and p.get("remote_id") and p.get("platform") == "youtube":
+            acc = accounts.get(p["account"])
+            if acc:
+                try:
+                    accounts.youtube_delete(acc, p["remote_id"])
+                except Exception:
+                    pass
         _save()
     _mirror(p)
 
@@ -192,6 +229,35 @@ def retry(pid):
         p.update(status="scheduled", due_at=time.time(), tries=0, error=None)
         _save()
     _mirror(p)
+
+
+def post_now(pid):
+    """Force an existing scheduled post to be published immediately."""
+    with _lock:
+        p = next((p for p in _mine() if p["id"] == pid), None)
+        if not p or p["status"] != "scheduled":
+            raise ValueError("Only posts that are waiting can be posted now.")
+        p["due_at"] = time.time()
+        p["schedule_mode"] = "immediate"
+        p["status"] = "posting"
+        _save()
+    _post(p)
+
+
+def schedule_native(pid):
+    """Convert an existing locally scheduled YouTube post to a native scheduled Short on YouTube."""
+    with _lock:
+        p = next((p for p in _mine() if p["id"] == pid), None)
+        if not p or p["status"] != "scheduled":
+            raise ValueError("Only posts that are waiting can be scheduled natively.")
+        if p.get("platform") != "youtube":
+            raise ValueError("Native scheduling is only supported for YouTube accounts.")
+        if p.get("schedule_mode") == "native" and p.get("remote_id"):
+            raise ValueError("This post is already scheduled natively on YouTube.")
+        p["schedule_mode"] = "native"
+        p["status"] = "posting"
+        _save()
+    _post(p)
 
 
 def overview() -> dict:

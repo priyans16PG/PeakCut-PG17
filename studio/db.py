@@ -112,6 +112,17 @@ admin_log = sa.Table(                                                         # 
 )
 
 
+ai_providers = sa.Table(                                                      # multi-provider AI storage & multi-key Gemini
+    "ai_providers", meta,
+    sa.Column("provider", sa.String(50), primary_key=True),
+    sa.Column("api_keys", sa.Text, nullable=False, server_default="[]"),
+    sa.Column("models", sa.Text, nullable=False, server_default="[]"),
+    sa.Column("is_active", sa.Boolean, nullable=False, server_default=sa.false()),
+    sa.Column("extra_config", sa.Text, nullable=False, server_default="{}"),
+    sa.Column("updated_at", sa.Float, nullable=False, server_default="0"),
+)
+
+
 def init():
     meta.create_all(engine)
 

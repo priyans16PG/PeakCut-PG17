@@ -183,11 +183,17 @@ def _yt_token(acc) -> str:
     return acc["access_token"]
 
 
-def youtube_upload(acc, path: Path, title: str, description: str, tags: list, privacy: str):
+def youtube_upload(acc, path: Path, title: str, description: str, tags: list, privacy: str, publish_at: str = None):
     token = _yt_token(acc)
+    st = {"selfDeclaredMadeForKids": False}
+    if publish_at:
+        st["privacyStatus"] = "private"  # YouTube Data API requires private when publishAt is set
+        st["publishAt"] = publish_at
+    else:
+        st["privacyStatus"] = privacy
     meta = {"snippet": {"title": re.sub(r"[<>]", "", title)[:100] or "Clip", "description": re.sub(r"[<>]", "", description)[:4900],
                         "tags": tags[:15], "categoryId": "20"},
-            "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False}}
+            "status": st}
     size = path.stat().st_size
     start = _check(httpx.post("https://www.googleapis.com/upload/youtube/v3/videos",
                               params={"uploadType": "resumable", "part": "snippet,status"}, json=meta,
@@ -198,6 +204,16 @@ def youtube_upload(acc, path: Path, title: str, description: str, tags: list, pr
                                 headers={"Authorization": f"Bearer {token}", "Content-Type": "video/mp4"}, timeout=900),
                       "Uploading to YouTube").json()
     return done["id"], f"https://www.youtube.com/shorts/{done['id']}"
+
+
+def youtube_delete(acc, video_id: str) -> bool:
+    try:
+        token = _yt_token(acc)
+        r = httpx.delete("https://www.googleapis.com/youtube/v3/videos", params={"id": video_id},
+                         headers={"Authorization": f"Bearer {token}"}, timeout=30)
+        return r.status_code in (200, 204, 404)
+    except Exception:
+        return False
 
 
 def youtube_views(acc, ids: list) -> dict:

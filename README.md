@@ -63,7 +63,7 @@ You can also set your keys in [`.env`](.env):
 ### Recommended Providers:
 | Provider | Model ID | Notes |
 |---|---|---|
-| **Google Gemini** | `gemini-3.5-flash` | Free tier available at [Google AI Studio](https://aistudio.google.com/apikey) |
+| **Google Gemini** | `gemini-3.8-flash` | Free tier available at [Google AI Studio](https://aistudio.google.com/apikey) |
 | **Groq** | `qwen/qwen3.8-27b`, `openai/gpt-oss-120b` | Ultra-fast inference at [Groq Console](https://console.groq.com/keys) |
 | **Ollama** | `llama3.1` | 100% offline, free local LLM: [ollama.com](https://ollama.com) |
 
