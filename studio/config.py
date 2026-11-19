@@ -35,6 +35,11 @@ def _keep(key, make, seconds=60):
     return got[1]
 
 
+def _invalidate(key) -> None:
+    """Remove a cached value so it is re-read on the next call to _keep."""
+    _kept.pop(key, None)
+
+
 def _secret(var: str, file_var: str, pattern: str = r"\S{16,}") -> str:
     """A secret given directly (VAR) or as a path to a file holding it (VAR_FILE)."""
     return _keep(("secret", var, file_var), lambda: _read_secret(var, file_var, pattern))
@@ -140,13 +145,26 @@ def smtp_password() -> str:
 
 # ---------------------------------------------------------------- Google (sign in with Google, and connecting YouTube)
 def google_client() -> tuple:
-    """(client id, client secret). Either GOOGLE_CLIENT_ID/SECRET, or GOOGLE_CLIENT_FILE = the JSON Google lets you download."""
-    return _keep("google", _read_google_client)
+    """(client id, client secret). Either GOOGLE_CLIENT_ID/SECRET, or GOOGLE_CLIENT_FILE = the JSON Google lets you download,
+    or a google_client.json saved in the data folder from the Settings page."""
+    return _keep("google", _read_google_client, seconds=5)
 
 
 def _read_google_client() -> tuple:
+    # 1. credentials saved from the Settings page (data folder)
+    saved = Path(DATA_DIR) / "google_client.json"
+    if saved.exists():
+        try:
+            data = json.loads(saved.read_text(encoding="utf-8"))
+            cid, sec = data.get("client_id", "").strip(), data.get("client_secret", "").strip()
+            if cid and sec:
+                return cid, sec
+        except ValueError:
+            pass
+    # 2. environment variables
     if env("GOOGLE_CLIENT_ID") and env("GOOGLE_CLIENT_SECRET"):
         return env("GOOGLE_CLIENT_ID").strip(), env("GOOGLE_CLIENT_SECRET").strip()
+    # 3. downloaded JSON file
     path = env("GOOGLE_CLIENT_FILE")
     if path and Path(path).exists():
         try:
@@ -156,6 +174,16 @@ def _read_google_client() -> tuple:
         except ValueError:
             pass
     return "", ""
+
+
+def save_google_client(client_id: str, client_secret: str) -> None:
+    """Write Google credentials to the data folder and flush the config cache."""
+    saved = Path(DATA_DIR) / "google_client.json"
+    saved.write_text(
+        json.dumps({"client_id": client_id.strip(), "client_secret": client_secret.strip()}, indent=2),
+        encoding="utf-8",
+    )
+    _invalidate("google")
 
 
 # ---------------------------------------------------------------- video

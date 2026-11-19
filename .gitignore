@@ -7,27 +7,45 @@ secrets/
 *.key
 *service-account*.json
 *client_secret*.json
+*google_client*.json
+*credentials*.json
+*token*.json
+ai.json
 data/
 *.db
 *.db-wal
 *.db-shm
 *.sqlite*
 *.log
+*.part
+*.ytdl
+tmp/
+temp/
 
-# ---- this computer only
+# ---- this computer and developer tools
 .claude/
 CLAUDE.local.md
+.gemini/
 .vscode/
 .idea/
 *.bat
 !run.bat
 !setup.bat
 Thumbs.db
+desktop.ini
 .DS_Store
 
 # ---- Python
 __pycache__/
 *.py[cod]
+*$py.class
 .venv/
 venv/
+ENV/
+env/
 .pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/

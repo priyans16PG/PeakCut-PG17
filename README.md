@@ -2,7 +2,7 @@
 
 Turn long videos and live streams into captioned vertical clips, ready to post. Free, open source, and runs **100% locally on your computer with no Docker needed**.
 
-Paste a YouTube, Twitch or Kick link (or upload a local video file) and PeakCut finds the moments worth clipping, cuts them to 9:16 vertical format, adds word-by-word animated captions and hooks, and prepares them for posting.
+Paste a YouTube, Twitch or Kick link (or upload a local video file) and PeakCut finds the moments worth clipping, cuts them to 9:16 vertical format, adds word-by-word animated captions and hooks, and prepares them for posting directly to **YouTube Shorts** and **Instagram Reels**.
 
 ---
 
@@ -11,8 +11,10 @@ Paste a YouTube, Twitch or Kick link (or upload a local video file) and PeakCut 
 - **100% Local & No Docker**: Runs straight on your device with Python and FFmpeg. No containers, no database setup (uses built-in SQLite).
 - **One-Click Launch**: Double-click `run.bat` on Windows.
 - **Offline Speech-to-Text**: Transcribes video audio completely on your device using `sherpa-onnx` and the Parakeet model. Audio never leaves your computer.
+- **Direct YouTube & Instagram Posting**: Connect your YouTube channel right from the web dashboard to upload rendered clips directly as YouTube Shorts.
 - **No Sign-In Hassle**: Opens directly into your dashboard at `http://127.0.0.1:8765`.
 - **Bring Your Own AI**: Connect Google Gemini, Groq, OpenAI, Claude, OpenRouter, or a 100% offline local model with **Ollama**. (Without an AI key, PeakCut clips automatically using audio loudness and speech peaks).
+- **Reliable Long Video Processing**: Built-in download timeout safeguards and recovery for multi-hour videos and live streams.
 
 ---
 
@@ -30,6 +32,20 @@ That's it! The launcher automatically:
 2. Checks that FFmpeg is available.
 3. Downloads the offline speech model once (if missing).
 4. Launches the local server and opens **`http://127.0.0.1:8765`** in your default web browser.
+
+---
+
+## Connecting YouTube (for auto-posting Shorts)
+
+You can link your YouTube channel directly from the web UI to post clips with one click:
+
+1. Open **Settings** (gear icon) → **Connected apps**.
+2. Under **YouTube**, click **Set up**.
+3. Enter your Google Cloud OAuth **Client ID** and **Client Secret** (from the [Google Cloud Console](https://console.cloud.google.com/apis/credentials)) and click **Save credentials**.
+4. Click **Connect** and authorize your channel in the Google consent screen.
+5. Once linked, open any completed clip in PeakCut, tick your channel under **Post it**, and click **Post now** (or **Add to queue**).
+
+> **Tip for Google Cloud setup:** If your Google Cloud app is in "Testing" mode, add your Gmail under **OAuth consent screen → Test users** before connecting.
 
 ---
 
@@ -61,7 +77,7 @@ You can also set your keys in [`.env`](.env):
 | `start.ps1` | PowerShell starter script |
 | `studio/` | PeakCut core server, video clipping pipeline, captions, and AI callers |
 | `web/` | Web dashboard (pure HTML/CSS/JS, no node/npm build needed) |
-| `data/` | Your local database (`peakcut.db`), offline speech models, and rendered clips |
+| `data/` | Your local database (`peakcut.db`), offline speech models, credentials, and rendered clips |
 | `.env` | Local settings and API keys (never shared or committed) |
 | `tests/` | Automated test suite |
 

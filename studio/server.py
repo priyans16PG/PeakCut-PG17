@@ -1330,6 +1330,20 @@ def add_instagram(body: dict = Body(...)):
     return {"id": acc["id"], "name": acc["name"]}
 
 
+@app.post("/api/accounts/google-client")
+def save_google_client(body: dict = Body(...)):
+    """Save Google OAuth credentials entered from the Settings page."""
+    cid = str(body.get("client_id", "")).strip()[:300]
+    sec = str(body.get("client_secret", "")).strip()[:300]
+    if not cid or not sec:
+        raise HTTPException(400, "Both a Client ID and a Client Secret are required.")
+    try:
+        config.save_google_client(cid, sec)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(500, safe.friendly(e, 300))
+    return {"ok": True}
+
+
 @app.post("/api/posts")
 def add_posts(body: dict = Body(...)):
     job = jobs.get(str(body.get("job")))

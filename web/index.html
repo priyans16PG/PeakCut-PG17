@@ -450,15 +450,26 @@ img.av{object-fit:cover}
 .kv{margin:0 0 12px;border-top:1px solid var(--line)}
 .kv div{display:grid;grid-template-columns:180px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
 .kv dt{font-size:13px;color:var(--dim)}.kv dd{margin:0;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.apps{display:flex;flex-direction:column;gap:10px}
-.appcard{display:flex;gap:14px;align-items:flex-start;padding:14px 16px;border:1px solid var(--line);border-radius:12px}
-.applogo{flex:none;width:40px;height:40px;border-radius:10px;display:grid;place-items:center}
+.pill svg{width:13px;height:13px}
+.apps{display:flex;flex-direction:column;gap:12px}
+.appcard{display:flex;gap:14px;align-items:center;padding:16px 18px;border:1px solid var(--line);border-radius:var(--r);background:#fff;transition:border-color .15s ease}
+.appcard.connected{border-color:rgba(15,138,87,.32);background:linear-gradient(to right,rgba(15,138,87,.03),#fff)}
+.applogo{flex:none;width:42px;height:42px;border-radius:10px;display:grid;place-items:center}
 .applogo svg{width:22px;height:22px}
-.apptx{flex:1;min-width:0}.apptx>b{display:block;font-size:15px;color:var(--brand-ink)}.apptx>span{font-size:13px;color:var(--dim)}
-.appact{flex:none}
-.applist{display:flex;flex-direction:column;gap:6px;margin-top:10px}
-.applist div{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.applist .btn{margin-left:auto}
+.apptx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.apptx>b{font-size:15px;font-weight:600;color:var(--brand-ink)}
+.apptx>span{font-size:13px;color:var(--dim);line-height:1.4}
+.app-conn-badge{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.app-conn-name{font-size:13px;font-weight:600;color:var(--brand-ink)}
+.appact{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.app-config-box{margin-top:12px;padding:16px 18px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--muted);animation:rise .2s ease both}
+.app-config-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.app-config-head h4{font-size:14px;font-weight:600;color:var(--brand-ink);margin:0}
+.app-config-head p{font-size:12px;color:var(--dim);margin:2px 0 0}
+.app-config-box a{color:var(--brand-deep);text-decoration:underline;text-underline-offset:2px}
+.app-config-box input{height:36px;background:#fff;border:1px solid var(--line-2);border-radius:var(--r-sm);padding:0 12px;font-size:13px;color:var(--text)}
+.app-config-box input:focus{border-color:var(--brand);outline:none}
+@media (max-width:640px){.appcard{flex-wrap:wrap;align-items:flex-start}.appact{width:100%;justify-content:flex-start;margin-top:8px}}
 @media (max-width:860px){.set-layout{grid-template-columns:1fr;gap:16px}.set-nav{position:static;flex-direction:row;overflow-x:auto}.set-link small{display:none}.set-link{flex:none}.kv div{grid-template-columns:1fr;gap:2px}}
 .savebar{position:sticky;bottom:16px;z-index:4;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 16px;margin-top:8px;border-radius:14px;background:var(--brand-ink);color:#F4ECE6;opacity:0;transform:translateY(12px);pointer-events:none;transition:opacity .2s ease,transform .2s ease}
 .savebar.on{opacity:1;transform:none;pointer-events:auto}
@@ -2005,24 +2016,109 @@ async function drawSettings() {
     }
     if (tab === "apps") {
       const conn = S.accounts || [];
-      const app = (key, name, logo, bg, desc, action, list) => `<div class="appcard"><span class="applogo" style="background:${bg}">${logo}</span>
-          <div class="apptx"><b>${name}</b><span>${desc}</span>${list}</div><div class="appact">${action}</div></div>`;
       const mine = plat => conn.filter(a => (a.platform || a.label || "").toLowerCase().includes(plat));
-      const listOf = arr => arr.length ? `<div class="applist">${arr.map(a => `<div><span class="pill ok">Connected</span><b>${esc(a.name)}</b><span class="sub">${esc(a.detail || "")}</span>
-          <button class="btn sm ghost" data-act="accremove" data-id="${esc(a.id)}">Disconnect</button></div>`).join("")}</div>` : "";
+      const ytAccs = mine("youtube");
+      const igAccs = mine("instagram");
       const yt = '<svg viewBox="0 0 24 24"><path fill="#fff" d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.55 12 3.55 12 3.55s-7.5 0-9.38.5A3.02 3.02 0 0 0 .5 6.19C0 8.07 0 12 0 12s0 3.93.5 5.81a3.02 3.02 0 0 0 2.12 2.14c1.88.5 9.38.5 9.38.5s7.5 0 9.38-.5a3.02 3.02 0 0 0 2.12-2.14C24 15.93 24 12 24 12s0-3.93-.5-5.81zM9.55 15.57V8.43L15.82 12l-6.27 3.57z"/></svg>';
       const ig = '<svg viewBox="0 0 24 24"><path fill="#fff" d="M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23a3.7 3.7 0 0 1-.9 1.38c-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41a3.7 3.7 0 0 1-1.38-.9 3.7 3.7 0 0 1-.9-1.38c-.16-.42-.36-1.06-.41-2.23C2.17 15.58 2.16 15.2 2.16 12s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41C8.42 2.17 8.8 2.16 12 2.16zM12 5.84a6.16 6.16 0 1 0 0 12.32 6.16 6.16 0 0 0 0-12.32zm0 10.16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.4-11.85a1.44 1.44 0 1 0 0 2.88 1.44 1.44 0 0 0 0-2.88z"/></svg>';
       const tt = '<svg viewBox="0 0 24 24"><path fill="#fff" d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.3 0 .59.04.86.13v-3.5a6.37 6.37 0 0 0-.86-.05A6.34 6.34 0 0 0 3.15 15.7a6.34 6.34 0 0 0 10.86 4.43 6.3 6.3 0 0 0 1.81-4.43V8.73a8.2 8.2 0 0 0 4.77 1.52V6.8a4.85 4.85 0 0 1-1-.11z"/></svg>';
+
       body.innerHTML = `<section class="set-sec"><h2>Connected apps</h2><p class="help">Connect the accounts PeakCut can post clips to. Each one can then be switched on per creator, in that creator's Setup. You always sign in on the platform's own page; PeakCut never sees your passwords.</p>
         <div class="apps">
-          ${app("yt", "YouTube", yt, "#FF0000", "Post clips to your channel as Shorts.",
-              S.status.youtube ? `<a class="btn sm primary" href="/oauth/youtube/start" target="_blank" rel="noopener">${ic("plus")}Connect</a>` : `<span class="pill">Not available yet</span>`, listOf(mine("youtube")))}
-          ${app("ig", "Instagram", ig, "linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)", "Post clips as Reels to a Creator or Business account.",
-              me.is_admin ? `<button class="btn sm" data-act="igform">${ic("plus")}Connect</button>` : `<span class="pill">Coming soon</span>`, listOf(mine("instagram")))}
-          ${app("tt", "TikTok", tt, "#000", "Post clips straight to TikTok.", `<span class="pill">Coming soon</span>`, "")}
+          <div class="appcard ${ytAccs.length ? "connected" : ""}">
+            <span class="applogo" style="background:#FF0000">${yt}</span>
+            <div class="apptx">
+              <b>YouTube</b>
+              <span>Post clips to your channel as Shorts.</span>
+              ${ytAccs.length ? `<div class="app-conn-badge">
+                  <span class="pill ok">${ic("check")}Connected</span>
+                  <span class="app-conn-name">${esc(ytAccs[0].name)}</span>
+                  ${ytAccs[0].detail ? `<span class="sub">${esc(ytAccs[0].detail)}</span>` : ""}
+                </div>`
+                : (S.status.youtube ? `<div class="app-conn-badge"><span class="pill warn">Ready to connect</span></div>`
+                : `<div class="app-conn-badge"><span class="pill">Needs API setup</span></div>`)}
+            </div>
+            <div class="appact">
+              ${ytAccs.length ? `
+                <button class="btn sm danger" data-act="accremove" data-id="${esc(ytAccs[0].id)}">${ic("trash")}Disconnect</button>
+                <a class="btn sm ghost" href="/oauth/youtube/start" target="_blank" rel="noopener" title="Switch or reconnect channel">${ic("plus")}Switch</a>
+                <button class="btn sm ghost" data-act="ytcredform" title="Change Google credentials">${ic("cog")}</button>`
+                : (S.status.youtube ? `
+                <a class="btn sm primary" href="/oauth/youtube/start" target="_blank" rel="noopener">${ic("plus")}Connect</a>
+                <button class="btn sm ghost" data-act="ytcredform" title="Change Google credentials">${ic("cog")}</button>`
+                : `<button class="btn sm primary" data-act="ytcredform">${ic("cog")}Set up</button>`)}
+            </div>
+          </div>
+
+          <div class="appcard ${igAccs.length ? "connected" : ""}">
+            <span class="applogo" style="background:linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)">${ig}</span>
+            <div class="apptx">
+              <b>Instagram</b>
+              <span>Post clips as Reels to a Creator or Business account.</span>
+              ${igAccs.length ? `<div class="app-conn-badge">
+                  <span class="pill ok">${ic("check")}Connected</span>
+                  <span class="app-conn-name">${esc(igAccs[0].name)}</span>
+                </div>` : ""}
+            </div>
+            <div class="appact">
+              ${igAccs.length ? `
+                <button class="btn sm danger" data-act="accremove" data-id="${esc(igAccs[0].id)}">${ic("trash")}Disconnect</button>
+                <button class="btn sm ghost" data-act="igform" title="Update token">${ic("cog")}</button>`
+                : (me.is_admin ? `<button class="btn sm" data-act="igform">${ic("plus")}Connect</button>` : `<span class="pill">Coming soon</span>`)}
+            </div>
+          </div>
+
+          <div class="appcard" style="opacity:.82">
+            <span class="applogo" style="background:#000">${tt}</span>
+            <div class="apptx">
+              <b>TikTok</b>
+              <span>Post clips straight to TikTok.</span>
+            </div>
+            <div class="appact">
+              <span class="pill">Coming soon</span>
+            </div>
+          </div>
         </div>
-        <div id="igbox" hidden><div class="row" style="margin-top:12px"><input id="igtoken" type="password" placeholder="Instagram access token from your Meta developer app" autocomplete="off" style="flex:1 1 280px"><button class="btn primary" data-act="igadd">Connect Instagram</button></div>
-          <p class="sub" style="margin-top:6px">Admin only while the Meta app is in review.</p></div></section>`;
+
+        <div id="ytcredbox" hidden class="app-config-box">
+          <div class="app-config-head">
+            <div>
+              <h4>Google Cloud OAuth credentials</h4>
+              <p class="sub">Used to post clips directly to your YouTube channel as Shorts. Credentials stay on this machine.</p>
+            </div>
+            <button class="btn sm ghost" data-act="ytcredform" aria-label="Close">${ic("x")}</button>
+          </div>
+          <div class="row" style="flex-wrap:wrap;gap:10px;margin-top:12px">
+            <label class="f" style="flex:1 1 320px;margin:0">
+              <span style="font-size:12px;font-weight:600;color:var(--dim)">Client ID</span>
+              <input id="ytclientid" type="text" placeholder="123456...apps.googleusercontent.com" autocomplete="off">
+            </label>
+            <label class="f" style="flex:1 1 240px;margin:0">
+              <span style="font-size:12px;font-weight:600;color:var(--dim)">Client Secret</span>
+              <input id="ytclientsecret" type="password" placeholder="Client Secret" autocomplete="off">
+            </label>
+          </div>
+          <div class="row" style="margin-top:14px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <span class="sub" style="font-size:12px">Need keys? Create them in your <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a></span>
+            <button class="btn primary sm" data-act="ytcredadd">Save credentials</button>
+          </div>
+        </div>
+
+        <div id="igbox" hidden class="app-config-box">
+          <div class="app-config-head">
+            <div>
+              <h4>Instagram access token</h4>
+              <p class="sub">Connect via your Meta developer application token to post Reels.</p>
+            </div>
+            <button class="btn sm ghost" data-act="igform" aria-label="Close">${ic("x")}</button>
+          </div>
+          <div class="row" style="flex-wrap:wrap;gap:10px;margin-top:12px">
+            <input id="igtoken" type="password" placeholder="Instagram access token from your Meta app" autocomplete="off" style="flex:1 1 320px">
+            <button class="btn primary sm" data-act="igadd">Connect Instagram</button>
+          </div>
+          <p class="sub" style="margin-top:8px;font-size:12px">Admin only while the Meta app is in review.</p>
+        </div>
+      </section>`;
     }
   } catch (e) { body.innerHTML = `<div class="set-load">${esc(e.message)}</div>`; }
 }
@@ -2302,6 +2398,15 @@ document.addEventListener("click", async e => {
     if (a === "tour") return startTour();
     if (a === "settab") { e.preventDefault(); S.stab = d.k; remember("settings", d.k); return drawSettings(); }
     if (a === "igform") { const x = $("#igbox"); x.hidden = !x.hidden; if (!x.hidden) $("#igtoken").focus(); return; }
+    if (a === "ytcredform") { const x = $("#ytcredbox"); x.hidden = !x.hidden; if (!x.hidden) $("#ytclientid").focus(); return; }
+    if (a === "ytcredadd") {
+      const cid = $("#ytclientid").value.trim(), sec = $("#ytclientsecret").value.trim();
+      if (!cid || !sec) return toast("Enter both the Client ID and the Client Secret.", "bad");
+      await send("/api/accounts/google-client", {client_id: cid, client_secret: sec});
+      const x = $("#ytcredbox"); if (x) x.hidden = true;
+      toast("Credentials saved — click Connect to link your YouTube channel.", "ok");
+      await tick(); return drawSettings();
+    }
     if (a === "bell") return openBell();
     if (a === "feedback") return openFeedback("bug");
     if (a === "report") return openFeedback("bug", d.ctx);
