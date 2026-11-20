@@ -123,6 +123,19 @@ ai_providers = sa.Table(                                                      # 
 )
 
 
+stt_settings = sa.Table(                                                      # speech-to-text: local model vs ElevenLabs Scribe
+    "stt_settings", meta,
+    sa.Column("provider", sa.String(50), primary_key=True),                   # "local" | "elevenlabs"
+    sa.Column("api_key", sa.Text, nullable=False, server_default=""),
+    sa.Column("model", sa.String(100), nullable=False, server_default="scribe_v1"),
+    sa.Column("language", sa.String(20), nullable=False, server_default=""),
+    sa.Column("fallback_to_local", sa.Boolean, nullable=False, server_default=sa.true()),
+    sa.Column("is_active", sa.Boolean, nullable=False, server_default=sa.false()),
+    sa.Column("extra_config", sa.Text, nullable=False, server_default="{}"),
+    sa.Column("updated_at", sa.Float, nullable=False, server_default="0"),
+)
+
+
 def init():
     meta.create_all(engine)
 

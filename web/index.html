@@ -817,6 +817,7 @@ dialog[open]{animation:fadein .16s ease}
 </div>
 <dialog id="clipdlg"></dialog>
 <dialog id="formdlg"></dialog>
+<dialog id="logdlg"></dialog>
 <input type="file" id="file" accept="video/*" multiple hidden>
 <div id="toasts" role="status" aria-live="polite"></div>
 <div class="pop" id="bellpop" role="dialog" aria-label="Notifications" hidden></div>
@@ -882,7 +883,8 @@ const I = {
  "signout": "<path d=\"M120,216a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H56V208h56A8,8,0,0,1,120,216Zm109.66-93.66-40-40a8,8,0,0,0-11.32,11.32L204.69,120H112a8,8,0,0,0,0,16h92.69l-26.35,26.34a8,8,0,0,0,11.32,11.32l40-40A8,8,0,0,0,229.66,122.34Z\"/>",
  "shield": "<path d=\"M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z\"/>",
  "users": "<path d=\"M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z\"/>",
- "lock": "<path d=\"M128,112a28,28,0,0,0-8,54.83V184a8,8,0,0,0,16,0V166.83A28,28,0,0,0,128,112Zm0,40a12,12,0,1,1,12-12A12,12,0,0,1,128,152Zm80-72H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Z\"/>"
+ "lock": "<path d=\"M128,112a28,28,0,0,0-8,54.83V184a8,8,0,0,0,16,0V166.83A28,28,0,0,0,128,112Zm0,40a12,12,0,1,1,12-12A12,12,0,0,1,128,152Zm80-72H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Z\"/>",
+ "mic": "<path d=\"M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm112,64a8,8,0,0,1-16,0,64,64,0,0,1-128,0,8,8,0,0,1-16,0,80.11,80.11,0,0,0,72,79.6V232a8,8,0,0,1-16,0H104a8,8,0,0,1,0-16h48a8,8,0,0,1,0,16H144v24a8,8,0,0,1-16,8,8,8,0,0,1-8-8V207.6A80.11,80.11,0,0,0,208,128Z\"/>"
 };
 const ic = n => `<svg viewBox="0 0 256 256" aria-hidden="true">${I[n]}</svg>`;
 const navIc = (n, v) => ic(S.view === v && I[n + "_f"] ? n + "_f" : n);
@@ -1702,13 +1704,15 @@ function jobHtml(j) {
                 j.took ? "made in " + fmt(j.took) : "", j.kind === "live" ? "recording, " + j.stage.toLowerCase() : ""].filter(Boolean).map(esc).join(" · ");
   const pic = j.thumb ? `<img src="/media/${esc(j.id)}/thumb.jpg" alt="" loading="lazy">` : ic(j.source?.type === "file" ? "film" : "link");
   return `<div class="job-head"><div class="jt"><span class="jthumb">${pic}${j.duration ? `<span class="du">${fmt(j.duration)}</span>` : ""}</span><div style="min-width:0"><h3>${esc(j.title || j.source.name)}</h3><p class="sub">${meta}</p></div></div>
-      <div class="row" style="flex-wrap:nowrap;gap:4px">${busy ? "" : `
+      <div class="row" style="flex-wrap:nowrap;gap:4px">
+        <button class="btn sm icon ghost" data-act="viewjoblog" data-j="${j.id}" title="View pipeline log" aria-label="View pipeline log">${ic("receipt")}</button>
+        ${busy ? "" : `
         ${j.clips.some(c => c.status === "done") ? `<button class="btn sm icon ghost" data-act="dlall" data-j="${j.id}" title="Download all clips of this video" aria-label="Download all clips of this video">${ic("down")}</button>` : ""}
         <button class="btn sm icon ghost" data-act="deljob" data-j="${j.id}" title="Delete" aria-label="Delete this video and its clips">${ic("trash")}</button>
         <label class="selck" title="Select this video and its clips"><input type="checkbox" data-sel="j:${j.id}" ${sel().has("j:" + j.id) ? "checked" : ""} aria-label="Select this video"></label>`}</div></div>
-    ${busy ? `<div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div><p class="sub">${esc(j.stage)} · ${Math.round(j.progress * 100)}%</p>` : ""}
+    ${busy ? `<div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div><p class="sub">${esc(j.stage)} · ${Math.round(j.progress * 100)}% · <a href="#" data-act="viewjoblog" data-j="${j.id}" style="color:var(--brand-ink);text-decoration:underline">view log</a></p>` : ""}
     ${j.status === "done" && !j.clips.length ? `<p class="sub">${esc(j.stage)}</p>` : ""}
-    ${j.error ? `<div class="err">${esc(j.error)}<button class="rep" data-act="report" data-ctx="${esc("Video failed: " + (j.title || j.source.name || "") + " | " + j.error)}">Report this</button></div>` : ""}${j.ai?.note ? `<p class="sub">${esc(j.ai.note)}</p>` : ""}
+    ${j.error ? `<div class="err">${esc(j.error)}<button class="btn sm ghost" style="margin-left:8px;padding:2px 8px;font-size:11px" data-act="viewjoblog" data-j="${j.id}">View Log</button><button class="rep" data-act="report" data-ctx="${esc("Video failed: " + (j.title || j.source.name || "") + " | " + j.error)}">Report this</button></div>` : ""}${j.ai?.note ? `<p class="sub">${esc(j.ai.note)}</p>` : ""}
     ${j.clips.length ? `<div class="grid">${j.clips.map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
 }
 /* ---- selecting several videos and clips: delete or download them together */
@@ -1975,7 +1979,10 @@ function drawUsage() {
 /* ============================================================ settings */
 // With sign-in off there is no profile or password to manage. The AI section is for whoever runs the server.
 const setTabs = () => [
-  ...(S.status.user?.is_admin ? [["ai", "AI", "bolt", "Your AI service, model and key"]] : []),
+  ...(S.status.user?.is_admin ? [
+    ["ai", "AI", "bolt", "Your AI service, model and key"],
+    ["stt", "Speech to text", "mic", "Speech recognition with local model or ElevenLabs Scribe API"]
+  ] : []),
   ...(S.status.accounts === false ? [] : [["profile", "Profile", "user", "Your name, email and how you sign in"],
                                           ["security", "Security", "lock", "Password and signing out"]]),
   ["apps", "Connected apps", "plug", "Where your clips get posted"]];
@@ -1996,6 +2003,89 @@ function aiHints() {
   if (gemWrap) gemWrap.hidden = (sel.value !== "gemini");
   const sKeyWrap = $("#ai_singlekey_wrap");
   if (sKeyWrap) sKeyWrap.hidden = (sel.value === "gemini");
+}
+let whisperDlPollTimer = null;
+async function pollWhisperDownload() {
+  if (whisperDlPollTimer) {
+    clearTimeout(whisperDlPollTimer);
+    whisperDlPollTimer = null;
+  }
+  try {
+    const st = await api("/api/stt/whisper/download");
+    const box = $("#whisper_dl_box");
+    if (!box) return;
+
+    if (st.active || st.status === "downloading") {
+      box.style.display = "block";
+      const pct = Math.round(st.percent || 0);
+      const titleEl = $("#whisper_dl_title");
+      if (titleEl) titleEl.textContent = `Downloading Whisper model (${st.model || "model"})...`;
+      const pctEl = $("#whisper_dl_pct");
+      if (pctEl) pctEl.textContent = `${pct}%`;
+      const barEl = $("#whisper_dl_bar");
+      if (barEl) barEl.style.width = `${pct}%`;
+      const bytesEl = $("#whisper_dl_bytes");
+      if (bytesEl) bytesEl.textContent = `${(st.downloaded_mb || 0).toFixed(1)} MB / ${(st.total_mb || 0).toFixed(1)} MB`;
+      const fileEl = $("#whisper_dl_file");
+      if (fileEl) fileEl.textContent = st.file ? st.file : "";
+      const spdEl = $("#whisper_dl_speed_eta");
+      if (spdEl) {
+        const speed = (st.speed_mbps || 0).toFixed(1);
+        const eta = st.eta_seconds != null ? `${st.eta_seconds}s` : "--";
+        spdEl.textContent = `Speed: ${speed} MB/s · ETA: ${eta}`;
+      }
+      const msgEl = $("#whisper_dl_msg");
+      if (msgEl) {
+        msgEl.style.display = st.message ? "block" : "none";
+        msgEl.style.color = "var(--dim)";
+        msgEl.textContent = st.message || "";
+      }
+      whisperDlPollTimer = setTimeout(pollWhisperDownload, 500);
+    } else {
+      if (st.status === "completed") {
+        box.style.display = "block";
+        const pctEl = $("#whisper_dl_pct");
+        if (pctEl) pctEl.textContent = "100%";
+        const barEl = $("#whisper_dl_bar");
+        if (barEl) barEl.style.width = "100%";
+        const spinEl = $("#whisper_dl_spinner");
+        if (spinEl) spinEl.textContent = "✓";
+        const titleEl = $("#whisper_dl_title");
+        if (titleEl) titleEl.textContent = `Whisper model (${st.model}) downloaded successfully!`;
+        const bytesEl = $("#whisper_dl_bytes");
+        if (bytesEl) bytesEl.textContent = `${(st.downloaded_mb || 0).toFixed(1)} MB`;
+        const spdEl = $("#whisper_dl_speed_eta");
+        if (spdEl) spdEl.textContent = "Ready on disk";
+        const msgEl = $("#whisper_dl_msg");
+        if (msgEl) {
+          msgEl.style.display = "block";
+          msgEl.style.color = "var(--ok, #16a34a)";
+          msgEl.textContent = "Download complete. Saved in data/models/whisper/";
+        }
+        toast(`Whisper model (${st.model}) ready!`, "ok");
+        setTimeout(() => {
+          if (S.stab === "stt" || (!S.stab && setTabs()[0][0] === "stt")) drawSettings();
+        }, 1200);
+      } else if (st.status === "error") {
+        box.style.display = "block";
+        const spinEl = $("#whisper_dl_spinner");
+        if (spinEl) spinEl.textContent = "⚠️";
+        const titleEl = $("#whisper_dl_title");
+        if (titleEl) titleEl.textContent = `Download failed (${st.model})`;
+        const msgEl = $("#whisper_dl_msg");
+        if (msgEl) {
+          msgEl.style.display = "block";
+          msgEl.style.color = "var(--bad, #dc2626)";
+          msgEl.textContent = st.message || "Failed to download model";
+        }
+        toast(st.message || "Whisper model download failed", "bad");
+      } else {
+        box.style.display = "none";
+      }
+    }
+  } catch (err) {
+    whisperDlPollTimer = setTimeout(pollWhisperDownload, 2000);
+  }
 }
 async function drawSettings() {
   const box = $("#sform"); if (!box) return;
@@ -2083,6 +2173,235 @@ async function drawSettings() {
           </div>
           <div class="row" style="margin-top:20px"><button class="btn primary" data-act="aisave">Save and test</button>${k.ready ? `<button class="btn" data-act="aitest">Test again</button>` : ""}</div></section>`;
       aiHints();
+    }
+    if (tab === "stt") {
+      const s = S.stt = await api("/api/stt");
+      body.innerHTML = `<section class="set-sec"><h2>Speech to text</h2><p class="help">PeakCut turns spoken audio into timestamped words for captions, keyword triggers and AI clip discovery. Choose between OpenAI Whisper (with hardware auto-detection & English/Hindi support), built-in local offline Parakeet model, or cloud-grade ElevenLabs Scribe API.</p>
+        <div class="ai-state" style="margin-bottom:20px">
+          ${s.provider === "whisper"
+            ? `<span class="pill ok">${ic("check")}Whisper Active</span><span class="sub">Model: ${esc(s.model || "auto")}${s.language ? " · Language: " + esc(s.language) : " · Auto-detect"} · ${esc(s.hardware?.summary || "")}</span>`
+            : s.provider === "elevenlabs"
+              ? (s.has_key
+                ? `<span class="pill ok">${ic("check")}ElevenLabs Active</span><span class="sub">Model: ${esc(s.model || "scribe_v1")}${s.language ? " · Language: " + esc(s.language) : " · Auto-detect"}</span>`
+                : `<span class="pill warn">Key Needed</span><span class="sub">Paste your ElevenLabs API key below.</span>`)
+              : (s.local_model_ready
+                ? `<span class="pill ok">${ic("check")}Local Model Ready</span><span class="sub">Parakeet 0.6b (offline model on your processor)</span>`
+                : `<span class="pill warn">Model Not Found</span><span class="sub">Run <code style="font-size:12px">python -m studio.fetch_model</code> to download the offline speech model.</span>`)}
+        </div>
+
+        <div class="ai-form">
+          <label class="f">Transcription engine
+            <select id="stt_provider">
+              <option value="whisper" ${s.provider === "whisper" ? "selected" : ""}>OpenAI Whisper (Auto Hardware & English / Hindi — High accuracy)</option>
+              <option value="local" ${s.provider === "local" ? "selected" : ""}>Local offline model (Parakeet 0.6b — Free & private)</option>
+              <option value="elevenlabs" ${s.provider === "elevenlabs" ? "selected" : ""}>ElevenLabs Scribe API (Cloud — High accuracy & multi-language)</option>
+            </select>
+          </label>
+
+          <div id="stt_whisper_panel" ${s.provider === "whisper" ? "" : "hidden"}>
+            <div class="card" style="margin:16px 0 20px;padding:16px;border:1px solid var(--line);border-radius:var(--r);background:var(--muted)">
+              <div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+                <div>
+                  <h3 style="font-size:14px;font-weight:600;margin:0 0 4px">OpenAI Whisper (Local Speech to Text)</h3>
+                  <p class="sub" style="font-size:12px;margin:0">Transcribes English, Hindi, and 90+ languages with word-level timestamps and punctuation using fast CTranslate2.</p>
+                </div>
+                <button class="btn sm" type="button" data-act="whispertest" id="test_whisper_btn">${ic("bolt")}Test & Preload Model</button>
+              </div>
+
+              <div style="background:#fff;border:1px solid var(--line);border-radius:var(--r-sm,8px);padding:10px 14px;margin:12px 0;display:flex;align-items:center;gap:10px">
+                <span style="font-size:20px">${s.hardware?.cuda_available ? '⚡' : '🖥️'}</span>
+                <div style="font-size:12px;line-height:1.4">
+                  <b>Hardware Detected:</b> ${esc(s.hardware?.summary || "CPU (Auto)")}
+                  <span class="sub" style="display:block">PeakCut detects your CPU cores, RAM, and GPU VRAM to pick the fastest and most accurate model size automatically.</span>
+                </div>
+              </div>
+
+              <!-- Real-time Download Progress Box -->
+              <div id="whisper_dl_box" style="${(s.download_status?.active || s.download_status?.status === 'downloading') ? '' : 'display:none;'}background:#fff;border:1px solid var(--brand);border-radius:var(--r-sm,8px);padding:12px 14px;margin:12px 0">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span id="whisper_dl_spinner" style="font-size:14px">⏳</span>
+                    <b id="whisper_dl_title" style="font-size:13px;color:var(--text)">Downloading Whisper model (${esc(s.download_status?.model || "model")})...</b>
+                  </div>
+                  <span id="whisper_dl_pct" style="font-size:13px;font-weight:700;color:var(--brand)">${Math.round(s.download_status?.percent || 0)}%</span>
+                </div>
+                <div class="bar" style="height:8px;margin:6px 0 8px;background:var(--muted)"><i id="whisper_dl_bar" style="width:${Math.round(s.download_status?.percent || 0)}%;background:var(--brand);transition:width .3s ease"></i></div>
+                <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub)">
+                  <span id="whisper_dl_bytes">${(s.download_status?.downloaded_mb || 0).toFixed(1)} MB / ${(s.download_status?.total_mb || 0).toFixed(1)} MB</span>
+                  <span id="whisper_dl_file" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.download_status?.file || "")}</span>
+                  <span id="whisper_dl_speed_eta">Speed: ${(s.download_status?.speed_mbps || 0).toFixed(1)} MB/s · ETA: ${s.download_status?.eta_seconds != null ? s.download_status.eta_seconds + 's' : '--'}</span>
+                </div>
+                <div id="whisper_dl_msg" style="font-size:11px;margin-top:6px;${s.download_status?.message ? '' : 'display:none;'}">${esc(s.download_status?.message || "")}</div>
+              </div>
+
+              <!-- Installed Whisper Models Library -->
+              <div style="margin:12px 0 16px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                  <span style="font-size:12px;font-weight:600;color:var(--text)">Whisper Model Library & On-Disk Status</span>
+                  <span class="sub" style="font-size:11px">Saved to <code>data/models/whisper/</code></span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(210px, 1fr));gap:8px" id="whisper_models_tray">
+                  ${(s.models_status || []).filter(m => m.id !== 'auto').map(m => `
+                    <div style="background:#fff;border:1px solid var(--line);border-radius:var(--r-sm,8px);padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
+                      <div>
+                        <b style="font-size:12px;display:block">${esc(m.id)}</b>
+                        <span class="sub" style="font-size:11px">${m.downloaded ? (m.size_mb + ' MB') : ('~' + (m.size_mb || 0) + ' MB')}</span>
+                      </div>
+                      ${m.downloaded
+                        ? `<span class="pill ok" style="font-size:11px;padding:2px 8px">${ic("check")}Ready</span>`
+                        : `<button class="btn sm" type="button" data-act="whisperdl" data-model="${m.id}" style="padding:2px 8px;font-size:11px">⬇️ Get</button>`}
+                    </div>
+                  `).join("")}
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                <label class="f">Whisper model size
+                  <select id="whisper_model">
+                    ${(s.whisper_models || []).map(m => {
+                      const st = (s.models_status || []).find(x => x.id === m.id);
+                      const badge = st ? (st.downloaded ? ' [✓ Ready]' : ' [Needs Download]') : '';
+                      return `<option value="${m.id}" ${(s.model === m.id || (!s.model && m.id === "auto")) ? "selected" : ""}>${esc(m.name)}${badge}</option>`;
+                    }).join("")}
+                  </select>
+                  <span class="hint" id="whisper_model_hint">"Auto" chooses Small on CPU (~480MB) or Large on GPU. You can also override it manually.</span>
+                  <div id="whisper_model_status_note" style="margin-top:4px"></div>
+                </label>
+
+                <label class="f">Spoken language
+                  <select id="whisper_lang">
+                    ${(s.whisper_languages || []).map(l => `<option value="${l.id}" ${(s.language === l.id || (!s.language && l.id === "auto")) ? "selected" : ""}>${esc(l.name)}</option>`).join("")}
+                  </select>
+                  <span class="hint">Whisper auto-detects English, Hindi, and Hinglish. Select a language to lock it.</span>
+                </label>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                <label class="f">Device
+                  <select id="whisper_device">
+                    <option value="auto" ${(!s.extra_config?.whisper_device || s.extra_config?.whisper_device === "auto") ? "selected" : ""}>Auto-detect (${s.hardware?.cuda_available ? "CUDA GPU" : "CPU"})</option>
+                    <option value="cpu" ${s.extra_config?.whisper_device === "cpu" ? "selected" : ""}>CPU (Processors)</option>
+                    <option value="cuda" ${s.extra_config?.whisper_device === "cuda" ? "selected" : ""}>CUDA (NVIDIA Graphics Card)</option>
+                  </select>
+                </label>
+
+                <label class="f">Quantization / Compute type
+                  <select id="whisper_compute">
+                    <option value="auto" ${(!s.extra_config?.whisper_compute_type || s.extra_config?.whisper_compute_type === "auto") ? "selected" : ""}>Auto-detect (Optimal for device)</option>
+                    <option value="int8" ${s.extra_config?.whisper_compute_type === "int8" ? "selected" : ""}>int8 (Fastest on CPU, low RAM)</option>
+                    <option value="float16" ${s.extra_config?.whisper_compute_type === "float16" ? "selected" : ""}>float16 (Standard for CUDA GPU)</option>
+                    <option value="int8_float16" ${s.extra_config?.whisper_compute_type === "int8_float16" ? "selected" : ""}>int8_float16 (Low VRAM CUDA)</option>
+                    <option value="float32" ${s.extra_config?.whisper_compute_type === "float32" ? "selected" : ""}>float32 (Full precision)</option>
+                  </select>
+                </label>
+              </div>
+
+              <label class="f" style="margin-bottom:14px">Hugging Face Access Token (Optional — For Higher Rate Limits & Faster Downloads)
+                <div style="display:flex;gap:8px">
+                  <input id="stt_hf_token" type="password" autocomplete="off" spellcheck="false" placeholder="${s.has_hf_token ? 'Saved (' + esc(s.hf_token_hint) + '). Paste new token to update' : 'Paste Hugging Face token (hf_...)'}" style="flex:1">
+                  <button class="btn" type="button" data-act="hftest">${ic("bolt")}Test Token</button>
+                </div>
+                <span class="hint">Hugging Face token unlocks maximum download bandwidth and avoids rate limits when downloading Whisper models. Get a free token at <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">huggingface.co/settings/tokens ↗</a>.</span>
+              </label>
+
+              <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer;margin-top:6px">
+                <input id="whisper_fallback" type="checkbox" ${s.fallback_to_local ? "checked" : ""} style="margin-top:2px">
+                <div>
+                  <b>Fallback to local Parakeet model</b>
+                  <span class="sub" style="display:block;font-size:12px">If Whisper encounters an unexpected memory error, automatically fall back to Parakeet so clipping never stops.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div id="stt_elevenlabs_panel" ${s.provider === "elevenlabs" ? "" : "hidden"}>
+            <div class="card" style="margin:16px 0 20px;padding:16px;border:1px solid var(--line);border-radius:var(--r);background:var(--muted)">
+              <h3 style="font-size:14px;font-weight:600;margin:0 0 4px">ElevenLabs Speech to Text (Scribe)</h3>
+              <p class="sub" style="font-size:12px;margin:0 0 14px">Generates word-level timestamps and punctuation. Audio files and video clips are transcribed directly via the official Scribe API endpoint.</p>
+
+              <label class="f" style="margin-bottom:12px">ElevenLabs API key
+                <div style="display:flex;gap:8px">
+                  <input id="stt_key" type="password" autocomplete="off" spellcheck="false" placeholder="${s.has_key ? 'Saved, ends in ' + esc(s.key_hint) + '. Paste new key to replace' : 'Paste ElevenLabs API key (xi-api-key)'}" style="flex:1">
+                  <button class="btn" type="button" data-act="stttest">${ic("bolt")}Test Key</button>
+                </div>
+                <span class="hint">Get your key from your profile at <a href="https://elevenlabs.io" target="_blank" rel="noopener">elevenlabs.io</a>. The key is stored securely on your server and is never sent to the browser.</span>
+              </label>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                <label class="f">Scribe model
+                  <select id="stt_model">
+                    <option value="scribe_v1" ${s.model === "scribe_v1" ? "selected" : ""}>Scribe v1 (Fast & Accurate — Recommended)</option>
+                    <option value="scribe_v2" ${s.model === "scribe_v2" ? "selected" : ""}>Scribe v2 (Latest model)</option>
+                    <option value="scribe_v1_base" ${s.model === "scribe_v1_base" ? "selected" : ""}>Scribe v1 Base (Compact)</option>
+                  </select>
+                </label>
+                <label class="f">Language code (optional)
+                  <input id="stt_lang" value="${esc(s.language || "")}" placeholder="Leave blank for auto-detect (e.g. en, hi, es, fr)" spellcheck="false">
+                  <span class="hint">ISO 639-1 code. Empty means automatic language detection.</span>
+                </label>
+              </div>
+
+              <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer;margin-top:6px">
+                <input id="stt_fallback" type="checkbox" ${s.fallback_to_local ? "checked" : ""} style="margin-top:2px">
+                <div>
+                  <b>Fallback to local Parakeet model</b>
+                  <span class="sub" style="display:block;font-size:12px">If ElevenLabs credits run out or the service is temporarily unreachable, automatically fall back to the local model so video clipping never fails.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div id="stt_local_panel" ${s.provider === "local" ? "" : "hidden"}>
+            <div class="card" style="margin:16px 0 20px;padding:16px;border:1px solid var(--line);border-radius:var(--r);background:var(--muted)">
+              <h3 style="font-size:14px;font-weight:600;margin:0 0 4px">Local Speech Model (Parakeet 0.6b)</h3>
+              <p class="sub" style="font-size:12px;margin:0 0 10px">Transcribes speech completely offline on your computer's processors using Sherpa ONNX. No API keys or external credits required.</p>
+              ${s.local_model_ready
+                ? `<span class="pill ok" style="background:#fff;border:1px solid var(--line);font-size:12px">${ic("check")}Model files downloaded and ready in data/models/</span>`
+                : `<div class="note warn" style="padding:10px;border-radius:var(--r-sm,8px);background:#fff;border:1px solid var(--warn);font-size:13px">
+                    <b>Model files missing:</b> Open a terminal in the project directory and run <code>python -m studio.fetch_model</code> to download the model files once.
+                   </div>`}
+            </div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:20px">
+          <button class="btn primary" data-act="sttsave">Save settings</button>
+        </div>
+      </section>`;
+
+      $("#stt_provider").onchange = e => {
+        const v = e.target.value;
+        $("#stt_whisper_panel").hidden = v !== "whisper";
+        $("#stt_elevenlabs_panel").hidden = v !== "elevenlabs";
+        $("#stt_local_panel").hidden = v !== "local";
+      };
+
+      const updateWhisperModelStatus = () => {
+        const val = $("#whisper_model") ? $("#whisper_model").value : "auto";
+        const note = $("#whisper_model_status_note");
+        if (!note) return;
+        const st = (s.models_status || []).find(x => x.id === val);
+        if (st && st.downloaded) {
+          note.innerHTML = `<span style="color:var(--ok,#16a34a);font-size:12px">${ic("check")}<b>Model is ready on disk</b> (${st.size_mb} MB).</span>`;
+        } else if (val === "auto") {
+          const autoId = st?.resolved_id || s.hardware?.recommended_model || "small";
+          const autoSt = (s.models_status || []).find(x => x.id === autoId);
+          if (autoSt && autoSt.downloaded) {
+            note.innerHTML = `<span style="color:var(--ok,#16a34a);font-size:12px">${ic("check")}<b>Auto model (${autoId}) is ready on disk</b> (${autoSt.size_mb} MB).</span>`;
+          } else {
+            note.innerHTML = `<span style="color:var(--sub);font-size:12px">Auto model is <b>${autoId}</b> (${autoSt?.size_mb ? '~' + autoSt.size_mb + ' MB' : ''}). Will auto-download on first use or click: <button type="button" class="btn sm" data-act="whisperdl" data-model="${autoId}" style="padding:1px 8px;font-size:11px;margin-left:4px">⬇️ Download now</button></span>`;
+          }
+        } else {
+          note.innerHTML = `<span style="color:var(--sub);font-size:12px">Not downloaded yet. PeakCut will auto-download on first use or click: <button type="button" class="btn sm" data-act="whisperdl" data-model="${val}" style="padding:1px 8px;font-size:11px;margin-left:4px">⬇️ Download now</button></span>`;
+        }
+      };
+      if ($("#whisper_model")) {
+        $("#whisper_model").onchange = updateWhisperModelStatus;
+        updateWhisperModelStatus();
+      }
+      if (s.download_status && s.download_status.active) {
+        pollWhisperDownload();
+      }
     }
     if (tab === "profile") {
       const joined = me.created_at ? new Date(me.created_at * 1000).toLocaleDateString([], {day: "numeric", month: "long", year: "numeric"}) : "";
@@ -2282,6 +2601,67 @@ $("#clipdlg").addEventListener("change", e => {
     }
   }
 });
+
+/* ============================================================ job log dialog */
+let logTimer = null;
+let curLogJid = null;
+
+async function openJobLog(jid) {
+  curLogJid = jid;
+  const dlg = $("#logdlg");
+  if (!dlg) return;
+  dlg.innerHTML = `<form method="dialog" class="dlg" style="width:780px;max-width:calc(100vw - 32px);max-height:85vh;display:flex;flex-direction:column;gap:12px">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div style="min-width:0">
+        <h2 style="font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px;margin:0">
+          ${ic("receipt")} <span>Pipeline Log</span>
+        </h2>
+        <p class="sub" id="log_sub" style="font-size:12px;margin:3px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Loading...</p>
+      </div>
+      <div class="row" style="gap:6px;flex-shrink:0">
+        <button type="button" class="btn sm ghost" data-act="copylog" title="Copy entire log">${ic("copy")} Copy</button>
+        <button type="button" class="btn sm ghost" data-act="refreshlog" title="Refresh log">Refresh</button>
+        <button type="button" class="btn sm icon ghost" data-act="closelogdlg" aria-label="Close">${ic("x")}</button>
+      </div>
+    </div>
+    <pre id="log_pre" style="background:#17110e;color:#f3f4f6;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;line-height:1.5;padding:14px;border-radius:8px;overflow-y:auto;height:420px;white-space:pre-wrap;word-break:break-word;margin:0;border:1px solid #2a221d">Loading log...</pre>
+    <div class="dlg-foot" style="margin-top:2px;justify-content:space-between;align-items:center">
+      <span class="sub" id="log_foot" style="font-size:12px"></span>
+      <button class="btn" type="button" data-act="closelogdlg">Close</button>
+    </div>
+  </form>`;
+  dlg.onclose = () => {
+    clearInterval(logTimer);
+    logTimer = null;
+    curLogJid = null;
+    dlg.innerHTML = "";
+  };
+  dlg.returnValue = "no";
+  dlg.showModal();
+  await refreshJobLog();
+  clearInterval(logTimer);
+  logTimer = setInterval(refreshJobLog, 3000);
+}
+
+async function refreshJobLog() {
+  if (!curLogJid) return;
+  const pre = $("#log_pre");
+  if (!pre) return;
+  try {
+    const data = await api(`/api/jobs/${encodeURIComponent(curLogJid)}/log`);
+    const sub = $("#log_sub");
+    if (sub) sub.textContent = (data.title || curLogJid) + (data.status ? ` · ${data.status}` : "") + (data.stage ? ` (${data.stage})` : "");
+    const lines = data.lines || [];
+    pre.textContent = lines.length ? lines.join("\n") : (data.log || "No log entries yet. Video pipeline is initializing...");
+    const foot = $("#log_foot");
+    if (foot) foot.textContent = `${lines.length} log lines · Auto-refreshing`;
+    pre.scrollTop = pre.scrollHeight;
+  } catch (err) {
+    if (pre && !pre.textContent) pre.textContent = "Failed to load log: " + err.message;
+  }
+}
+
+$("#logdlg").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
 /* ============================================================ render + polling */
 function render() {
@@ -2512,6 +2892,15 @@ document.addEventListener("click", async e => {
     if (a === "pickfile") return $("#file").click();
     if (a === "addmore") { const u = $("#url"); return u && !u.value ? (u.focus(), toast("Paste another link, or drop a file anywhere on the box.")) : $("#file").click(); }
     if (a === "closedlg") return $("#clipdlg").close();
+    if (a === "viewjoblog") { e.preventDefault(); return openJobLog(d.j); }
+    if (a === "closelogdlg") return $("#logdlg")?.close();
+    if (a === "refreshlog") return refreshJobLog();
+    if (a === "copylog") {
+      const text = $("#log_pre")?.textContent || "";
+      if (!text) return toast("No log to copy", "bad");
+      await navigator.clipboard.writeText(text);
+      return toast("Pipeline log copied to clipboard", "ok");
+    }
     if (a === "openclip") return openClip(d.j, d.c);
     if (a === "newcreator") {
       const dlg = $("#formdlg");
@@ -2659,6 +3048,103 @@ document.addEventListener("click", async e => {
       toast("Scheduled natively on YouTube", "ok");
       await tick();
       return loadOverview();
+    }
+    if (a === "sttsave") {
+      const provider = $("#stt_provider") ? $("#stt_provider").value : "whisper";
+      let model = "auto";
+      let language = "auto";
+      let fallback_to_local = true;
+      let extra_config = {};
+
+      if (provider === "whisper") {
+        model = $("#whisper_model") ? $("#whisper_model").value : "auto";
+        language = $("#whisper_lang") ? $("#whisper_lang").value : "auto";
+        fallback_to_local = $("#whisper_fallback") ? $("#whisper_fallback").checked : true;
+        const hf_tok_val = $("#stt_hf_token") ? $("#stt_hf_token").value.trim() : "";
+        extra_config = {
+          whisper_device: $("#whisper_device") ? $("#whisper_device").value : "auto",
+          whisper_compute_type: $("#whisper_compute") ? $("#whisper_compute").value : "auto",
+        };
+        if (hf_tok_val) {
+          extra_config.hf_token = hf_tok_val;
+        }
+      } else if (provider === "elevenlabs") {
+        model = $("#stt_model") ? $("#stt_model").value : "scribe_v1";
+        language = $("#stt_lang") ? $("#stt_lang").value.trim() : "";
+        fallback_to_local = $("#stt_fallback") ? $("#stt_fallback").checked : true;
+      } else {
+        model = "parakeet";
+        language = "";
+      }
+
+      const api_key = $("#stt_key") ? $("#stt_key").value.trim() : "";
+
+      try {
+        await send("/api/stt", {provider, api_key, model, language, fallback_to_local, extra_config}, "PUT");
+        toast("Speech-to-text settings saved", "ok");
+        return drawSettings();
+      } catch (err) {
+        return toast(err.message || "Failed to save settings", "bad");
+      }
+    }
+    if (a === "whisperdl") {
+      const targetModel = e.target.closest("[data-model]")?.dataset.model || ($("#whisper_model") ? $("#whisper_model").value : "auto");
+      const box = $("#whisper_dl_box");
+      if (box) {
+        box.style.display = "block";
+        if ($("#whisper_dl_spinner")) $("#whisper_dl_spinner").textContent = "⏳";
+        if ($("#whisper_dl_title")) $("#whisper_dl_title").textContent = `Starting download for Whisper model (${targetModel})...`;
+        if ($("#whisper_dl_pct")) $("#whisper_dl_pct").textContent = "0%";
+        if ($("#whisper_dl_bar")) $("#whisper_dl_bar").style.width = "0%";
+        if ($("#whisper_dl_bytes")) $("#whisper_dl_bytes").textContent = "Connecting to Hugging Face...";
+        if ($("#whisper_dl_file")) $("#whisper_dl_file").textContent = "";
+        if ($("#whisper_dl_speed_eta")) $("#whisper_dl_speed_eta").textContent = "";
+        if ($("#whisper_dl_msg")) $("#whisper_dl_msg").style.display = "none";
+      }
+      toast(`Starting download for Whisper model (${targetModel})...`, "info");
+      try {
+        await send("/api/stt/whisper/download", {model: targetModel}, "POST");
+        pollWhisperDownload();
+      } catch (err) {
+        toast(err.message || "Failed to start download", "bad");
+      }
+      return;
+    }
+    if (a === "whispertest") {
+      const model = $("#whisper_model") ? $("#whisper_model").value : "auto";
+      const device = $("#whisper_device") ? $("#whisper_device").value : "auto";
+      const compute_type = $("#whisper_compute") ? $("#whisper_compute").value : "auto";
+      toast(`Testing Whisper model (${model})...`, "info");
+      pollWhisperDownload();
+      try {
+        const res = await send("/api/stt/whisper/test", {model, device, compute_type}, "POST");
+        toast(res.message || "Whisper model tested successfully!", "ok");
+        return drawSettings();
+      } catch (err) {
+        return toast(err.message || "Whisper test failed", "bad");
+      }
+    }
+    if (a === "hftest") {
+      const hf_token = $("#stt_hf_token") ? $("#stt_hf_token").value.trim() : "";
+      toast("Validating Hugging Face token...", "info");
+      try {
+        const res = await send("/api/stt/hf/test", {hf_token}, "POST");
+        toast(res.message || "Connected to Hugging Face!", "ok");
+        return drawSettings();
+      } catch (err) {
+        return toast(err.message || "Hugging Face token validation failed", "bad");
+      }
+    }
+    if (a === "stttest") {
+      const api_key = $("#stt_key") ? $("#stt_key").value.trim() : "";
+      toast("Testing ElevenLabs key...", "info");
+      try {
+        const res = await send("/api/stt/test", {api_key}, "POST");
+        toast(res.message || "Connected to ElevenLabs!", "ok");
+      } catch (err) {
+        toast(err.message || "ElevenLabs test failed", "bad");
+      }
+      return;
     }
     if (a === "ssave") { await saveSettings(); toast("Saved", "ok"); return drawSettings(); }
     if (a === "plansave") {

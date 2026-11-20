@@ -198,6 +198,67 @@ def _decode_remote(pieces: list) -> list:
 def transcribe(audio: np.ndarray, on_progress=None) -> list:
     """Returns [{'w': word, 's': start_sec, 'e': end_sec}, ...] for the whole audio.
     Speech is cut at quiet moments into 12-24 s pieces; silent pieces are skipped."""
+    # 1. Custom Speech-to-Text provider if enabled (Whisper or ElevenLabs)
+    try:
+        from . import stt
+        cfg = stt.get_settings()
+        prov = cfg.get("provider", "local")
+
+        if prov == "whisper":
+            try:
+                words = stt.transcribe_whisper(
+                    audio,
+                    model_name=cfg.get("model", "auto"),
+                    language=cfg.get("language", "auto"),
+                    device=cfg.get("extra_config", {}).get("whisper_device", "auto"),
+                    compute_type=cfg.get("extra_config", {}).get("whisper_compute_type", "auto"),
+                    on_progress=on_progress,
+                )
+                if words is not None:
+                    return words
+            except Exception as e:
+                print(f"[STT] Whisper STT error: {e}", flush=True)
+                if cfg.get("fallback_to_local", True):
+                    import logging
+                    logging.getLogger("peakcut.stt").warning(
+                        f"Whisper STT failed ({e}), falling back to local Parakeet model."
+                    )
+                    print("[STT] Falling back to local Parakeet offline model.", flush=True)
+                else:
+                    raise
+
+        elif prov == "elevenlabs" and (cfg.get("api_key") or config.elevenlabs_key()):
+            try:
+                words = stt.transcribe_elevenlabs(
+                    audio,
+                    key_override=cfg.get("api_key"),
+                    model=cfg.get("model", "scribe_v1"),
+                    language=cfg.get("language", ""),
+                    on_progress=on_progress,
+                )
+                if words is not None:
+                    return words
+            except Exception as e:
+                print(f"[STT] ElevenLabs STT error: {e}", flush=True)
+                if cfg.get("fallback_to_local", True):
+                    import logging
+                    logging.getLogger("peakcut.stt").warning(
+                        f"ElevenLabs STT failed ({e}), falling back to local Parakeet model."
+                    )
+                    print("[STT] Falling back to local Parakeet offline model.", flush=True)
+                else:
+                    raise
+    except Exception as e:
+        # If fallback is explicitly disabled, don't swallow
+        try:
+            from . import stt
+            s = stt.get_settings()
+            if s.get("provider") in ("whisper", "elevenlabs") and not s.get("fallback_to_local", True):
+                raise
+        except Exception:
+            pass
+
+    # 2. Local Parakeet model (or fallback)
     global _remote_down_until
     words = []
     todo = []

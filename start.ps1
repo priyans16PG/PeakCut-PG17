@@ -27,6 +27,13 @@ if (-not (Test-Path ".venv\Scripts\python.exe")) {
     python -m venv .venv
     Write-Host "[*] Installing dependencies..." -ForegroundColor Yellow
     & .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+} else {
+    # Check if newly added dependencies (e.g. faster-whisper, psutil) are installed
+    $depCheck = & .\.venv\Scripts\python.exe -c "import faster_whisper, psutil, fastapi, sqlalchemy, httpx, uvicorn" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[*] New dependencies detected. Installing/updating packages in .venv..." -ForegroundColor Yellow
+        & .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+    }
 }
 
 # 3. Check FFmpeg

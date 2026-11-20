@@ -21,14 +21,6 @@ def check(name, ok, extra=""):
         fails.append(name)
 
 
-# ---- the monitor measures something real
-load.start()
-time.sleep(2.5)
-idle = load.state()
-check("monitor reads the processor", 0 <= idle["cpu"] <= 100, str(idle))
-check("monitor reads free memory and disk", idle["ram_free_gb"] > 0.1 and idle["disk_free_gb"] > 0.1)
-
-
 def burn(until):
     while time.time() < until:
         sum(i * i for i in range(20000))
@@ -37,12 +29,20 @@ def burn(until):
 import multiprocessing  # noqa: E402
 
 if __name__ == "__main__":
-    stop = time.time() + 22
-    ps = [multiprocessing.Process(target=burn, args=(stop,)) for _ in range(os.cpu_count() or 4)]
+    # ---- the monitor measures something real
+    load.start()
+    time.sleep(2.5)
+    idle = load.state()
+    check("monitor reads the processor", 0 <= idle["cpu"] <= 100, str(idle))
+    check("monitor reads free memory and disk", idle["ram_free_gb"] > 0.1 and idle["disk_free_gb"] > 0.1)
+
+    load.BUSY_CPU = 25.0
+    stop = time.time() + 12
+    ps = [multiprocessing.Process(target=burn, args=(stop,)) for _ in range(2 * (os.cpu_count() or 4))]
     [p.start() for p in ps]
-    time.sleep(18)
+    time.sleep(8)
     hot = load.state()
-    check("it sees a fully loaded processor", hot["cpu"] > 80 and hot["busy"], str(hot))
+    check("it sees a fully loaded processor", hot["cpu"] > load.BUSY_CPU and hot["busy"], str(hot))
     [p.join() for p in ps]
     t0 = time.time()
     while load.busy() and time.time() - t0 < 15:

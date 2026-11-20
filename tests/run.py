@@ -54,6 +54,9 @@ def main() -> int:
                 ("no sign-in, and the AI key from the dashboard", ["tests/test_local.py"]),
                 ("Gemini 3 rotation & multi-key API storage", ["tests/test_gemini_rotation.py"]),
                 ("Local vs YouTube Native Scheduling", ["tests/test_scheduling.py"]),
+                ("ElevenLabs Speech to text & local fallback", ["tests/test_elevenlabs_stt.py"]),
+                ("OpenAI Whisper STT, hardware auto-detection & English/Hindi", ["tests/test_whisper_stt.py"]),
+                ("pipeline logging and log viewer", ["tests/test_job_logging.py"]),
                 ("Hindi and Urdu captions in Roman letters", ["tests/test_roman.py"])]
         for name, args in runs:
             print(f"\n=== {name} ===", flush=True)

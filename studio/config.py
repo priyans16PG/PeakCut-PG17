@@ -127,6 +127,33 @@ def ai_ready() -> bool:
     return ai.ready()
 
 
+# ---------------------------------------------------------------- Speech-to-Text / Whisper / ElevenLabs Scribe
+STT_PROVIDER = env("PEAKCUT_STT_PROVIDER", "local").strip().lower()                 # "local", "whisper", or "elevenlabs"
+ELEVENLABS_MODEL = env("PEAKCUT_ELEVENLABS_MODEL", "scribe_v1").strip()
+ELEVENLABS_LANGUAGE = env("PEAKCUT_ELEVENLABS_LANGUAGE", "").strip()
+
+WHISPER_MODEL = env("PEAKCUT_WHISPER_MODEL", "auto").strip().lower()                # "auto", "small", "large-v3-turbo", "large-v3", "medium", "base", "tiny"
+WHISPER_LANGUAGE = env("PEAKCUT_WHISPER_LANGUAGE", "auto").strip().lower()          # "auto", "en", "hi", etc.
+WHISPER_DEVICE = env("PEAKCUT_WHISPER_DEVICE", "auto").strip().lower()              # "auto", "cpu", "cuda"
+WHISPER_COMPUTE_TYPE = env("PEAKCUT_WHISPER_COMPUTE_TYPE", "auto").strip().lower()  # "auto", "int8", "float16", "float32"
+
+
+def elevenlabs_key() -> str:
+    return _secret("ELEVENLABS_API_KEY", "ELEVENLABS_API_KEY_FILE", r"\S{8,}") or _secret("PEAKCUT_ELEVENLABS_KEY", "PEAKCUT_ELEVENLABS_KEY_FILE", r"\S{8,}")
+
+
+def hf_token() -> str:
+    token = (
+        _secret("HF_TOKEN", "HF_TOKEN_FILE", r"\S{8,}")
+        or _secret("HUGGINGFACE_TOKEN", "HUGGINGFACE_TOKEN_FILE", r"\S{8,}")
+        or _secret("PEAKCUT_HF_TOKEN", "PEAKCUT_HF_TOKEN_FILE", r"\S{8,}")
+    )
+    if token:
+        os.environ.setdefault("HF_TOKEN", token)
+        os.environ.setdefault("HUGGING_FACE_HUB_TOKEN", token)
+    return token
+
+
 # ---------------------------------------------------------------- account emails (see mailer.py)
 SMTP_HOST = env("PEAKCUT_SMTP_HOST", "")
 SMTP_PORT = int(env("PEAKCUT_SMTP_PORT", "587"))

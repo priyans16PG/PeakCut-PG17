@@ -37,6 +37,12 @@ if not exist ".venv\Scripts\python.exe" (
         pause
         exit /b 1
     )
+) else (
+    ".venv\Scripts\python.exe" -c "import faster_whisper, psutil, fastapi, sqlalchemy, httpx, uvicorn" >nul 2>&1
+    if %ERRORLEVEL% neq 0 (
+        echo [*] New dependencies detected. Installing/updating packages in .venv...
+        ".venv\Scripts\python.exe" -m pip install -r requirements.txt
+    )
 )
 
 :: 3. Check FFmpeg

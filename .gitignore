@@ -26,9 +26,15 @@ recordings/
 downloads/
 renders/
 *.onnx
+*.bin
+*.safetensors
+*.pt
+*.pth
 *.tar.bz2
 *.tar.gz
 peakcut-test-*/
+.cache/
+huggingface/
 
 # ---- this computer and developer tools
 .claude/

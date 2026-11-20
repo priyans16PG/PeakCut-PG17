@@ -141,7 +141,7 @@ def job_dir(jid) -> Path:
     return Path(_jobs[jid]["dir"])
 
 
-HIDDEN = ("dir", "user", "source_path", "recover")
+HIDDEN = ("dir", "user", "source_path", "recover", "logs")
 
 
 def public(job) -> dict:
@@ -151,6 +151,8 @@ def public(job) -> dict:
     out["clips"] = [{k: v for k, v in c.items() if k not in ("src", "fixed_words", "fixed_for")} for c in job["clips"]]
     ai = job.get("ai") or {}
     out["ai"] = {"tokens": ai.get("tokens", 0), "note": ai.get("note", ""), "used": bool(ai.get("model"))}   # never the model, never raw errors
+    d = Path(job["dir"]) if job.get("dir") else None
+    out["has_log"] = bool(job.get("logs")) or (d is not None and (d / "job.log").is_file())
     if job.get("status") == "queued":
         n = _q.ahead().get(job["id"])
         if n:
@@ -365,6 +367,7 @@ def render_one(job, clip, words):
     d = Path(job["dir"])
     clip["status"] = "rendering"
     save(job)
+    t_rc = time.time()
     try:
         off = clip.get("src_offset", 0.0)
         src = (Path(clip["src"]) if clip.get("src") else Path(job["source_path"])).resolve()
@@ -388,6 +391,13 @@ def render_one(job, clip, words):
         clip.update(out, status="done", version=clip.get("version", 0) + 1, error=None)
         post = {k: clip[k] for k in ("title", "description", "hashtags", "hook", "start", "end", "score")}
         (d / "clips" / f"{clip['id']}.json").write_text(json.dumps(post, indent=1), encoding="utf-8")
+        line = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [Render] Clip {clip['id']} ({clip['start']:.1f}s - {clip['end']:.1f}s) finished in {time.time() - t_rc:.1f}s -> {out.get('file')}"
+        print(f"[PeakCut {job.get('id', '')}] {line}", flush=True)
+        try:
+            with (d / "job.log").open("a", encoding="utf-8") as lf:
+                lf.write(line + "\n")
+        except Exception:
+            pass
         if clip["version"] == 1:
             clip.setdefault("made_at", time.time())
             creators.log(job["creator"], f"Clip ready (score {clip['score']}): {clip['title'] or clip['hook']}")
@@ -399,6 +409,13 @@ def render_one(job, clip, words):
                     traceback.print_exc()
     except Exception as e:  # noqa: BLE001
         clip.update(status="error", error=safe.friendly(e, 400))
+        err_line = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [Render] Clip {clip['id']} failed: {safe.friendly(e, 200)}"
+        print(f"[PeakCut {job.get('id', '')}] {err_line}", flush=True)
+        try:
+            with (d / "job.log").open("a", encoding="utf-8") as lf:
+                lf.write(err_line + "\n")
+        except Exception:
+            pass
         creators.log(job["creator"], f"Clip failed: {safe.friendly(e, 200)}")
     save(job)
 
@@ -449,15 +466,34 @@ def _run_job(job):
     src = job["source"]
     t0 = time.time()
     notes = []
+    log_file = d / "job.log"
+
+    def jlog(msg: str):
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        line = f"[{ts}] {msg}"
+        print(f"[PeakCut {job.get('id', '')}] {msg}", flush=True)
+        notes.append(line)
+        job["logs"] = list(notes)
+        try:
+            with log_file.open("a", encoding="utf-8") as lf:
+                lf.write(line + "\n")
+        except Exception:
+            pass
+
+    jlog(f"Job initialized (ID: {job.get('id')}) for source: {src.get('url') or src.get('path')}")
+    jlog(f"Configured options: max_clips={o.get('max_clips')}, length={o.get('min_len')}-{o.get('max_len')}s, style={o.get('style')}, layout={o.get('layout')}, quality={o.get('quality')}p")
+
     usage.set_context(job["creator"], job["title"] or src.get("name"))
     resuming = bool(job.pop("resume", False)) and (d / "words.json").is_file()
     if resuming:   # after a restart: keep the transcript parts, clips and AI answers already made, and carry on
+        jlog("Resuming previously interrupted job from saved words.json")
         _set(job, status="running", stage="Picking up where it stopped", error=None)
     else:
         _set(job, status="running", stage="Getting the audio", progress=0.03, error=None, clips=[], ai={}, done_blocks=0)
     fetch = ThreadPoolExecutor(1)
     video = None
     if src["type"] == "url":
+        jlog(f"Probing video info via yt-dlp: {src['url']}")
         meta = media.info(src["url"])
         if meta["kind"] != "video":
             raise RuntimeError("That link is a channel or playlist, not a single video. Paste the link of one video.")
@@ -467,13 +503,16 @@ def _run_job(job):
             raise RuntimeError("This link is a live stream, so it would never finish downloading. Open the creator, "
                                "put this link under Setup, and press Start recording instead.")
         _set(job, title=meta["title"], uploader=meta["uploader"], duration=meta["duration"])
+        jlog(f"Metadata received: Title='{meta.get('title')}', Uploader='{meta.get('uploader')}', Duration={meta.get('duration'):.1f}s")
         if not job.get("thumb") and media.save_thumb(d, url=src["url"]):
             _set(job, thumb=True)
         usage.set_context(job["creator"], meta["title"])
         span = (o["range_end"] or meta["duration"]) - (o["range_start"] or 0)
         pieces = (span > LONG_VIDEO or meta["duration"] <= 0) and not media.is_youtube(src["url"])
         if not pieces:  # shorter video or YouTube: fetch all of it in the background while the audio is worked on
+            jlog(f"Starting whole-video background download at {o.get('quality')}p...")
             video = fetch.submit(media.download, src["url"], d, int(o["quality"]))
+        jlog(f"Extracting audio stream ({span:.1f}s)...")
         audio_file = media.download_audio(src["url"], d, lambda p: _set(job, progress=0.03 + 0.1 * p))
     else:
         pieces, audio_file = False, Path(src["path"])
@@ -481,6 +520,7 @@ def _run_job(job):
         if info["duration"] > config.MAX_VIDEO_HOURS * 3600:
             raise RuntimeError(f"That video is longer than {config.MAX_VIDEO_HOURS:g} hours, which is the limit.")
         _set(job, source_path=str(audio_file), width=info["width"], height=info["height"], duration=info["duration"])
+        jlog(f"Local file metadata: Title='{audio_file.name}', Duration={info['duration']:.1f}s, Dimensions={info['width']}x{info['height']}")
         if not job.get("thumb") and media.save_thumb(d, video=audio_file):
             _set(job, thumb=True)
     wav = d / "audio.wav"
@@ -494,7 +534,9 @@ def _run_job(job):
     lo = int((o["range_start"] or 0) * 16000)
     hi = min(len(audio), int(o["range_end"] * 16000)) if o["range_end"] else len(audio)
     span = (hi - lo) / 16000
+    jlog(f"Audio loaded into memory: {len(audio)} samples (processing range: {lo/16000:.1f}s - {hi/16000:.1f}s, span: {span:.1f}s)")
     db = media.loudness_per_second(audio[lo:hi])
+    jlog("Analyzed audio loudness curve for volume peaks")
 
     vlock, vstate = threading.Lock(), {}
 
@@ -507,12 +549,12 @@ def _run_job(job):
                     try:
                         path = video.result()
                     except Exception as e:  # noqa: BLE001 - sites sometimes refuse a download
-                        notes.append(f"Video download refused once ({str(e)[-80:]}), retrying")
+                        jlog(f"Video download refused once ({str(e)[-80:]}), retrying")
                 if not path:
                     try:
                         path = media.download(src["url"], d, int(o["quality"]))
                     except Exception as e2:  # noqa: BLE001
-                        notes.append(f"Whole-video download failed ({str(e2)[-80:]}), fetching clip parts instead")
+                        jlog(f"Whole-video download failed ({str(e2)[-80:]}), fetching clip parts instead")
                 if path:
                     info = media.probe(path)
                     job.update(source_path=str(path), width=info["width"], height=info["height"])
@@ -536,8 +578,11 @@ def _run_job(job):
             # run on just this clip: full punctuation, nothing blanked out, timings to the word.
             a0, b0 = max(lo, int((clip["start"] - 1.5) * 16000)), min(hi, int((clip["end"] + 1.5) * 16000))
             try:
+                jlog(f"[STT] Re-aligning exact speech words for clip {clip['id']} ({clip['start']:.1f}s - {clip['end']:.1f}s)...")
                 tw = [dict(w, s=round(w["s"] + a0 / 16000, 2), e=round(w["e"] + a0 / 16000, 2)) for w in transcribe.transcribe(audio[a0:b0])]
-            except Exception:  # noqa: BLE001 - the clip is still made, with YouTube's words
+                jlog(f"[STT] Aligned {len(tw)} exact words for clip {clip['id']}")
+            except Exception as e:  # noqa: BLE001 - the clip is still made, with YouTube's words
+                jlog(f"[STT] Exact re-alignment skipped ({e}), using YouTube words")
                 tw = []
             if len(tw) >= 3:
                 exact[clip["id"]] = (a0 / 16000, b0 / 16000, tw)
@@ -556,11 +601,43 @@ def _run_job(job):
     if src["type"] == "url" and config.YT_TRANSCRIPT and media.is_youtube(src["url"]):
         try:
             yt = media.youtube_words(src["url"])
+            if yt:
+                jlog(f"[STT] Found official YouTube transcript ({len(yt[0])} words). Using for whole-video discovery.")
         except Exception:  # noqa: BLE001 - no transcript to borrow: ours is written as usual
             yt = None
         if yt and not _covers(yt[0], lo / 16000, hi / 16000):
+            jlog("[STT] YouTube transcript does not cover full requested span. Will transcribe with speech model.")
             yt = None
         job["transcript_from"] = "youtube" if yt else "own"
+    if not yt:
+        try:
+            from . import stt
+            stt_cfg = stt.get_settings()
+            prov = stt_cfg.get("provider", "local")
+            if prov == "whisper":
+                resolved_m, dev, comp = stt._resolve_whisper_params(stt_cfg.get("model", "auto"))
+                is_dl, sz = stt.is_whisper_model_downloaded(resolved_m)
+                jlog(f"[STT] Transcription engine: OpenAI Whisper (model: {resolved_m}, device: {dev}, compute: {comp}, ready_on_disk: {is_dl})")
+                if not is_dl:
+                    jlog(f"[STT] Whisper model '{resolved_m}' not found locally. Downloading from Hugging Face...")
+                    print(f"[PeakCut {jid}] [STT] Downloading Whisper model '{resolved_m}' from Hugging Face...", flush=True)
+                    _set(job, stage=f"Downloading Whisper model ({resolved_m})...")
+
+                    def _job_dl_cb(st):
+                        pct = st.get("percent", 0.0)
+                        msg = st.get("message", "")
+                        _set(job, stage=f"Downloading Whisper model ({resolved_m}): {pct:.0f}%")
+                        if int(pct) > 0 and int(pct) % 25 == 0:
+                            jlog(f"[STT] Download progress for '{resolved_m}': {msg}")
+
+                    stt.download_whisper_model(resolved_m, on_progress=_job_dl_cb)
+                    jlog(f"[STT] Whisper model '{resolved_m}' download complete and ready on disk.")
+            elif prov == "elevenlabs":
+                jlog(f"[STT] Transcription engine: ElevenLabs Scribe API (model: {stt_cfg.get('model', 'scribe_v1')}, fallback_to_local: {stt_cfg.get('fallback_to_local')})")
+            else:
+                jlog(f"[STT] Transcription engine: local Parakeet offline model (model: {stt_cfg.get('model')})")
+        except Exception as e:
+            jlog(f"[STT] Warning initializing transcription engine: {e}")
     if resuming:
         try:
             words = json.loads((d / "words.json").read_text(encoding="utf-8"))
@@ -600,35 +677,43 @@ def _run_job(job):
         if yt:
             _set(job, stage="Reading the transcript" + where)
             bw = [dict(w, s=round(w["s"] - shift, 2), e=round(w["e"] - shift, 2)) for w in yt[0] if a / 16000 <= w["s"] < b / 16000]
+            jlog(f"[STT] Read block {bi + 1}/{len(blocks)} from YouTube transcript: {len(bw)} words")
         else:
             _set(job, stage="Writing the transcript" + where)
+            jlog(f"[STT] Transcribing block {bi + 1}/{len(blocks)} ({a/16000:.0f}s - {b/16000:.0f}s)...")
             now_on[0] = bi
             hear(bi)
             hear(bi + 1)
             bw = heard.pop(bi).result()
+            jlog(f"[STT] Transcribed block {bi + 1}/{len(blocks)}: {len(bw)} words extracted")
         _set(job, progress=max(job["progress"], 0.14 + 0.78 * (b - lo) / max(1, hi - lo)))
         words += [dict(w, s=round(w["s"] + shift, 2), e=round(w["e"] + shift, 2)) for w in bw]
         (d / "words.json").write_text(json.dumps(words), encoding="utf-8")
         _set(job, stage="Finding the best moments" + where, word_count=len(words))
         left = int(o["max_clips"]) - len(job["clips"])
         if left <= 0 or len(bw) < 8:
+            jlog(f"Block {bi + 1}/{len(blocks)}: quota satisfied or insufficient speech ({len(bw)} words). Continuing.")
             job["done_blocks"] = bi + 1
             save(job)
             continue
         quota = max(1, math.ceil(left / (len(blocks) - bi)))
         s0 = int((a - lo) / 16000)
+        from . import ai
+        jlog(f"[AI] Scanning block {bi + 1}/{len(blocks)} with provider '{ai.provider()}' to find top {quota} highlight moments...")
         found, clip_ai = brain.find_clips(bw, db[s0: s0 + int((b - a) / 16000) + 1], (b - a) / 16000, job["title"],
-                                          job["uploader"], quota, int(o["min_len"]), int(o["max_len"]), notes.append)
+                                          job["uploader"], quota, int(o["min_len"]), int(o["max_len"]), jlog)
         tokens += clip_ai.get("tokens", 0)
         model = clip_ai.get("model") or model
         if clip_ai.get("note"):
-            notes.append(clip_ai["note"])
+            jlog(f"[AI Note] {clip_ai['note']}")
+        jlog(f"[AI] Found {len(found)} candidate(s) in block {bi + 1}. Used model: '{clip_ai.get('model')}', Tokens: {clip_ai.get('tokens', 0)}")
         for c in found:
             c.update(id=f"clip{len(job['clips']) + 1:02d}", start=round(c["start"] + shift, 2),
                      end=round(c["end"] + shift, 2), style=o["style"], layout=o["layout"], status="queued", version=0)
             job["clips"].append(c)
+            jlog(f"  -> Candidate {c['id']}: [{c['start']:.1f}s - {c['end']:.1f}s] Score: {c['score']}/100 | Hook: '{c.get('hook')}' | Title: '{c.get('title')}'")
             futures.append(renders.submit(ctx.bind(make), c, list(words)))
-        job["ai"] = {"model": model, "tokens": tokens, "note": "", "log": notes[-5:]}
+        job["ai"] = {"model": model, "tokens": tokens, "note": "", "log": notes[-10:]}
         job["done_blocks"] = bi + 1       # a restart from here on carries on with the next part
         save(job)
     if futures:
@@ -651,9 +736,12 @@ def _run_job(job):
             fallback_note = "All Gemini API keys and Gemini 3 models have reached their quota. Add another key, switch providers, or wait for quota reset."
         else:
             fallback_note = "The AI was unavailable, so clips were picked by loudness only."
-    job["ai"] = {"model": model, "tokens": tokens, "log": notes[-5:], "note": fallback_note}
+        jlog(f"[AI Fallback] {fallback_note}")
+    job["ai"] = {"model": model, "tokens": tokens, "log": notes[-10:], "note": fallback_note}
     stage = "Done" if clips else "Done, but nothing clip-worthy was found"
-    _set(job, status="done", stage=stage, progress=1.0, took=round(time.time() - t0))
+    took_secs = round(time.time() - t0)
+    _set(job, status="done", stage=stage, progress=1.0, took=took_secs)
+    jlog(f"Pipeline complete! {len(clips)} clip(s) generated in {took_secs}s. Stage: {stage}")
     try:
         from . import notices
         name = job.get("title") or job["source"].get("name") or "your video"
@@ -661,7 +749,7 @@ def _run_job(job):
                     name, f"/app/creators/{job['creator']}" if job.get("creator") else "/app/videos")
     except Exception:  # noqa: BLE001
         pass
-    creators.log(job["creator"], f"Video finished with {len(clips)} clips in {round(time.time() - t0)}s: {job['title']}")
+    creators.log(job["creator"], f"Video finished with {len(clips)} clips in {took_secs}s: {job['title']}")
 
 
 def _worker(quick_only=False):

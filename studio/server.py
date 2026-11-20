@@ -646,6 +646,30 @@ def get_job(jid: str):
     return jobs.public(_job_or_404(jid))
 
 
+@app.get("/api/jobs/{jid}/log")
+def get_job_log(jid: str):
+    job = _job_or_404(jid)
+    d = Path(job.get("dir", ""))
+    log_file = d / "job.log"
+    content = ""
+    if log_file.is_file():
+        try:
+            content = log_file.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+    if not content and job.get("logs"):
+        content = "\n".join(job["logs"])
+    lines = [l.strip() for l in content.splitlines() if l.strip()]
+    return {
+        "id": jid,
+        "title": job.get("title", ""),
+        "status": job.get("status", ""),
+        "stage": job.get("stage", ""),
+        "log": content,
+        "lines": lines,
+    }
+
+
 @app.get("/api/preview")
 def link_preview(request: Request, url: str = ""):
     url = url.strip()[:500]
@@ -1347,6 +1371,88 @@ def gemini_reset_all_cooldowns(request: Request):
         return {"keys": keys}
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+# ================================================================ Speech-to-Text (STT) / ElevenLabs
+@app.get("/api/stt")
+def stt_get(request: Request):
+    _admin(request)
+    from . import stt
+    return stt.public_settings()
+
+
+@app.put("/api/stt")
+def stt_put(request: Request, body: dict = Body(...)):
+    _admin(request)
+    from . import stt
+    try:
+        return stt.save_settings(
+            provider=body.get("provider", "local"),
+            api_key=body.get("api_key"),
+            model=body.get("model", "auto" if body.get("provider") == "whisper" else "scribe_v1"),
+            language=body.get("language", ""),
+            fallback_to_local=body.get("fallback_to_local", True),
+            extra_config=body.get("extra_config") or {},
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Failed to save STT settings: {e}")
+
+
+@app.post("/api/stt/test")
+def stt_test(request: Request, body: dict = Body(default={})):
+    _admin(request)
+    _throttle("stttest:" + ctx.uid(), 20, 600)
+    from . import stt
+    try:
+        return stt.test_elevenlabs_key(body.get("api_key"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(502, str(e))
+
+
+@app.post("/api/stt/whisper/test")
+def stt_whisper_test(request: Request, body: dict = Body(default={})):
+    _admin(request)
+    _throttle("sttwhispertest:" + ctx.uid(), 10, 600)
+    from . import stt
+    try:
+        return stt.test_whisper_model(
+            model_name=body.get("model", "auto"),
+            device=body.get("device", "auto"),
+            compute_type=body.get("compute_type", "auto"),
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Whisper test failed: {e}")
+
+
+@app.get("/api/stt/whisper/download")
+def stt_whisper_download_status(request: Request):
+    _admin(request)
+    from . import stt
+    return stt.get_download_status()
+
+
+@app.post("/api/stt/whisper/download")
+def stt_whisper_download_start(request: Request, body: dict = Body(default={})):
+    _admin(request)
+    _throttle("sttwhisperdl:" + ctx.uid(), 20, 600)
+    from . import stt
+    model = body.get("model", "auto")
+    return stt.start_whisper_download_async(model)
+
+
+@app.post("/api/stt/hf/test")
+def stt_hf_test(request: Request, body: dict = Body(default={})):
+    _admin(request)
+    _throttle("stthftest:" + ctx.uid(), 20, 600)
+    from . import stt
+    res = stt.test_hf_token(body.get("hf_token"))
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("message", "Invalid Hugging Face token."))
+    return res
 
 
 # ================================================================ posting, accounts, settings

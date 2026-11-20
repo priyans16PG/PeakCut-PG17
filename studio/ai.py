@@ -698,22 +698,26 @@ def call_gemini_rotation(prompt: str, schema: dict):
                         k["status"] = "active"
                         _db_save_provider("gemini", keys, gem.get("models") or GEMINI_3_MODELS, gem.get("is_active", True), gem.get("extra_config", {}))
                     set_gemini_all_quota_reached(False)
+                    print(f"[AI] Gemini {model} call successful with key '{k.get('label') or key_id}' ({sent} in, {wrote} out tokens)", flush=True)
                     return json.loads(text), model, sent, wrote
 
                 if r.status_code == 429:
                     with _cooldown_lock:
                         _cooldowns[(key_id, model)] = time.time() + 60.0
+                    print(f"[AI] Gemini {model} rate limit (429) on key '{k.get('label') or key_id}'. Setting 60s cooldown and rotating...", flush=True)
                     continue
 
                 if r.status_code in (500, 502, 503, 504):
                     # Model temporarily overloaded / spikes in demand: cooldown model for 30s and try next
                     with _cooldown_lock:
                         _cooldowns[(key_id, model)] = time.time() + 30.0
+                    print(f"[AI] Gemini {model} server error ({r.status_code}) on key '{k.get('label') or key_id}'. Trying next...", flush=True)
                     continue
 
                 if r.status_code == 404:
                     with _cooldown_lock:
                         _cooldowns[(key_id, model)] = time.time() + 3600.0
+                    print(f"[AI] Gemini model {model} not found (404). Cooling down for 1h...", flush=True)
                     continue
 
                 if r.status_code in (400, 403):
@@ -721,12 +725,14 @@ def call_gemini_rotation(prompt: str, schema: dict):
                     # Mark key invalid and rotate immediately to next key
                     k["status"] = "invalid"
                     _db_save_provider("gemini", keys, gem.get("models") or GEMINI_3_MODELS, gem.get("is_active", True), gem.get("extra_config", {}))
+                    print(f"[AI] Gemini key '{k.get('label') or key_id}' rejected ({r.status_code}). Marking invalid and rotating...", flush=True)
                     break
 
                 last_err = AIError(f"HTTP {r.status_code} {r.text[:200]}")
             except httpx.TimeoutException:
                 with _cooldown_lock:
                     _cooldowns[(key_id, model)] = time.time() + 30.0
+                print(f"[AI] Gemini {model} timed out on key '{k.get('label') or key_id}'. Trying next model...", flush=True)
                 continue
             except Exception as e:
                 err_text = str(e)
